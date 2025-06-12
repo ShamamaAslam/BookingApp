@@ -8,19 +8,27 @@ export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 const handleLogin = async () => {
-  const { error } = await supabase.auth.signInWithPassword({
+  // First, try logging in
+  const { data: loginData, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
   if (error) {
-    Alert.alert('Login Failed','Invalid User or Password');
-  } else {
-    Alert.alert('Login Successful', 'Welcome!');
-    //navigation.navigate('Home');
-  router.replace('/Home')
+    Alert.alert('Login Failed', 'Invalid email or password');
+    return;
   }
+
+  // After successful login, insert email if not already in 'users' table
+  await supabase.from('users').upsert(
+    { email: email },  // upsert means insert or update if exists
+    { onConflict: ['email'] } // prevent duplicates
+  );
+
+  Alert.alert('Login Successful', 'Welcome!');
+  router.replace('/Home');
 };
+
 
   return (
     <SafeAreaView style={styles.container}>
