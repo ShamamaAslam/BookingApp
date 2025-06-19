@@ -1,0 +1,2752 @@
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Dimensions, FlatList, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { supabase } from './SupabaseClient';
+
+const { width } = Dimensions.get('window');
+
+const images = [
+  require('../../assets/Offer1.jpg'),
+  require('../../assets/Offer2.jpg'),
+  require('../../assets/Offer3.jpg'),
+  require('../../assets/Offer4.jpg'),
+  require('../../assets/Offer5.jpg'),
+];
+
+export default function WelcomeScreen() {
+  const router = useRouter();
+  const [name, setName] = useState('');
+  const itemwidth = width - 40;
+
+  // Fetch user name on mount
+  useEffect(() => {
+    async function fetchUserName() {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+
+      if (error) {
+        console.log('Error fetching user:', error.message);
+        return;
+      }
+    console.log('User fetched:', user); 
+      // Assuming user_metadata has a "name" field
+      setName(user?.user_metadata?.name || '');
+    }
+
+    fetchUserName();
+  }, []);
+
+  const renderImage = ({ item }) => (
+    <View style={{ width: itemwidth, height: 250 }}>
+      <Image source={item} style={styles.slideImage} />
+    </View>
+  );
+
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      {/* Greeting with user name */}
+      <Text style={styles.greeting}>Hey {name || 'there'}!</Text>
+
+      <Image source={require('../../assets/WelcomeLogo.jpg')} style={styles.logo} />
+
+      <Text style={styles.title}>
+        "Your journey begins here – book your ride in seconds!"
+      </Text>
+
+      <View style={styles.sliderContainer}>
+        <FlatList
+          data={images}
+          renderItem={renderImage}
+          keyExtractor={(_, index) => index.toString()}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+        />
+      </View>
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={[styles.button, styles.signupButton]}
+          onPress={() => router.push('/Signup')}
+        >
+          <Text style={styles.buttonTextSignup}>Sign Up</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.button, styles.loginButton]}
+          onPress={() => router.push('/LoginScreen')}
+        >
+          <Text style={styles.buttonTextLogin}>Log In</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flexGrow: 1,
+    backgroundColor: 'lavender',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  greeting: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: 'purple',
+    alignSelf: 'flex-start',
+    marginBottom: 10,
+  },
+  logo: {
+    width: 300,
+    height: 150,
+    resizeMode: 'contain',
+    marginBottom: 5,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'purple',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  sliderContainer: {
+    height: 200,
+    width: width - 40,
+    marginBottom: 30,
+  },
+  slideImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain',
+    borderRadius: 10,
+  },
+
+  buttonContainer: {
+    width: '100%',
+  },
+  button: {
+    paddingVertical: 14,
+    borderRadius: 30,
+    marginBottom: 15,
+    alignItems: 'center',
+  },
+  signupButton: {
+    backgroundColor: '#3498db',
+  },
+  loginButton: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#3498db',
+  },
+  buttonTextSignup: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  buttonTextLogin: {
+    color: '#3498db',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
+
+i want these Ofers pictres to mve in a circuar loop
+To make the offer images move in a continuous circular loop, you can modify the FlatList component to automatically scroll and loop back to the beginning when it reaches the end. Here's how you can implement it:
+
+jsx
+import { useRouter } from 'expo-router';
+import { useEffect, useState, useRef } from 'react';
+import { Dimensions, FlatList, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { supabase } from './SupabaseClient';
+
+
+
+
+
+2. Update your database schema:
+Make sure your bookings table has these columns:
+
+sql
+CREATE TABLE bookings (
+  id SERIAL PRIMARY KEY,
+  user_id UUID REFERENCES auth.users NOT NULL,
+  bus_id INTEGER REFERENCES buses(id) NOT NULL,
+  from_city TEXT NOT NULL,
+  to_city TEXT NOT NULL,
+  travel_date DATE NOT NULL,
+  seats TEXT NOT NULL,  -- Comma-separated seat numbers
+  total_amount NUMERIC NOT NULL,
+  status TEXT DEFAULT 'confirmed',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+const { width } = Dimensions.get('window');
+
+const images = [
+  require('../../assets/Offer1.jpg'),
+  require('../../assets/Offer2.jpg'),
+  require('../../assets/Offer3.jpg'),
+  require('../../assets/Offer4.jpg'),
+  require('../../assets/Offer5.jpg'),
+];
+
+export default function WelcomeScreen() {
+  const router = useRouter();
+  const [name, setName] = useState('');
+  const itemwidth = width - 40;
+  const flatListRef = useRef(null);
+  const currentIndexRef = useRef(0);
+  const intervalRef = useRef(null);
+
+  // Fetch user name on mount
+  useEffect(() => {
+    async function fetchUserName() {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+
+      if (error) {
+        console.log('Error fetching user:', error.message);
+        return;
+      }
+      console.log('User fetched:', user); 
+      setName(user?.user_metadata?.name || '');
+    }
+
+    fetchUserName();
+  }, []);
+
+  // Auto-scroll functionality
+  useEffect(() => {
+    const startAutoScroll = () => {
+      intervalRef.current = setInterval(() => {
+        currentIndexRef.current += 1;
+        
+        // If we've reached the end, reset to beginning
+        if (currentIndexRef.current >= images.length) {
+          currentIndexRef.current = 0;
+          // Scroll to beginning without animation for smooth transition
+          flatListRef.current?.scrollToIndex({
+            index: 0,
+            animated: false,
+          });
+        }
+        
+        // Scroll to next item
+        flatListRef.current?.scrollToIndex({
+          index: currentIndexRef.current,
+          animated: true,
+        });
+      }, 3000); // Change slide every 3 seconds
+    };
+
+    startAutoScroll();
+
+    return () => {
+      clearInterval(intervalRef.current);
+    };
+  }, []);
+
+  const renderImage = ({ item }) => (
+    <View style={{ width: itemwidth, height: 250 }}>
+      <Image source={item} style={styles.slideImage} />
+    </View>
+  );
+
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      {/* Greeting with user name */}
+      <Text style={styles.greeting}>Hey {name || 'there'}!</Text>
+
+      <Image source={require('../../assets/WelcomeLogo.jpg')} style={styles.logo} />
+
+      <Text style={styles.title}>
+        "Your journey begins here – book your ride in seconds!"
+      </Text>
+
+      <View style={styles.sliderContainer}>
+        <FlatList
+          ref={flatListRef}
+          data={images}
+          renderItem={renderImage}
+          keyExtractor={(_, index) => index.toString()}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={(event) => {
+            const contentOffset = event.nativeEvent.contentOffset;
+            const viewSize = event.nativeEvent.layoutMeasurement;
+            
+            // Divide the horizontal offset by the width of the view to see which page is visible
+            const newIndex = Math.floor(contentOffset.x / viewSize.width);
+            currentIndexRef.current = newIndex;
+          }}
+          getItemLayout={(data, index) => ({
+            length: itemwidth,
+            offset: itemwidth * index,
+            index,
+          })}
+          initialScrollIndex={0}
+        />
+      </View>
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={[styles.button, styles.signupButton]}
+          onPress={() => router.push('/Signup')}
+        >
+          <Text style={styles.buttonTextSignup}>Sign Up</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.button, styles.loginButton]}
+          onPress={() => router.push('/LoginScreen')}
+        >
+          <Text style={styles.buttonTextLogin}>Log In</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+}
+
+// ... (keep your existing styles the same)
+Key changes made:
+
+Added refs to track the FlatList and current index
+
+Added an auto-scroll effect using setInterval
+
+Implemented smooth looping by:
+
+Resetting to index 0 when reaching the end
+
+Using getItemLayout for better performance
+
+Updating the current index during manual scrolls
+
+Set the interval to 3000ms (3 seconds) between slides - you can adjust this
+
+Clean up the interval when the component unmounts
+
+This will create an infinite looping carousel effect where the images automatically scroll every 3 seconds, and when it reaches the end, it seamlessly loops back to the beginning.
+
+The carousel will also respond to manual swipes, and the auto-scrolling will continue from wherever the user left off.
+
+PS C:\Users\DELL\Documents\Project\BookingApp> yar start
+yar : The term 'yar' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or 
+if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ yar start
++ ~~~
+    + CategoryInfo          : ObjectNotFound: (yar:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS C:\Users\DELL\Documents\Project\BookingApp>
+It looks like you're trying to run your React Native project but using the wrong command. The error shows that yar is not a recognized command. Here's how to fix this:
+
+Correct Commands to Run Your React Native Project:
+If you're using npm (Node Package Manager):
+
+bash
+npm start
+or
+
+bash
+npm run android  # to run on Android
+npm run ios      # to run on iOS
+If you're using Yarn:
+
+bash
+yarn start
+or
+
+bash
+yarn android  # to run on Android
+yarn ios      # to run on iOS
+Possible Issues & Solutions:
+yarn is not installed
+If you meant to use yarn but get an error, install it first:
+
+bash
+npm install -g yarn
+Typo in the command
+You typed yar instead of yarn. Make sure to use the correct command.
+
+Not in the correct directory
+Ensure you're in your project's root directory (where package.json is located).
+
+Dependencies not installed
+If you haven't installed dependencies yet, run:
+
+bash
+npm install
+or
+
+bash
+yarn install
+Steps to Run Your App:
+Open terminal in your project folder.
+
+Run either:
+
+bash
+npm start
+or
+
+bash
+yarn start
+In another terminal, run:
+
+bash
+npm run android  # for Android
+or
+
+bash
+npm run ios      # for iOS
+Let me know if you still face issues! 🚀
+
+nowproceed forward what should i do now after making this home screen
+import { FontAwesome, Ionicons, MaterialIcons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Dimensions, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { supabase } from './SupabaseClient';
+
+const { width } = Dimensions.get('window');
+const images = [
+  require('../../assets/Offer1.jpg'),
+  require('../../assets/Offer2.jpg'),
+  require('../../assets/Offer3.jpg'),
+  require('../../assets/Offer4.jpg'),
+  require('../../assets/Offer5.jpg'),
+];
+const cities = [
+  'Lahore','Lodhran', 'Karachi', 'Islamabad', 'Rawalpindi', 'Faisalabad','Multan', 'Peshawar', 'Quetta', 'Gujranwala', 'Hyderabad','Sialkot', 'Bahawalpur', 'Sargodha', 'Sukkur', 'Larkana'];
+const operators = ['Any Operator','Daewoo Express', 'Faisal Movers', 'Skyways', 'Niazi Express','Bilal Travels', 'Sindh Express', 'Pakistan Express'];
+
+export default function BusBookingScreen() {
+  const router = useRouter();
+  const [name, setName] = useState('');
+  const [from, setFrom] = useState('Select From');
+  const [to, setTo] = useState('Select To');
+  const [date, setDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [passengers, setPassengers] = useState(1);
+  const [showFromModal, setShowFromModal] = useState(false);
+  const [showToModal, setShowToModal] = useState(false);
+  const [searchFrom, setSearchFrom] = useState('');
+  const [searchTo, setSearchTo] = useState('');
+  const [selectedOperator, setSelectedOperator] = useState('Any Operator');
+  const [showOperatorModal, setShowOperatorModal] = useState(false);
+  // Fetch user name
+  useEffect(() => {
+    async function fetchUserName() {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (!error && user) {
+        setName(user.user_metadata?.name || '');
+      }
+    }
+    fetchUserName();
+  }, []);
+  const handleFromSelect = (city) => {
+    setFrom(city);
+    setShowFromModal(false);
+    setSearchFrom('');
+  };
+  const handleToSelect = (city) => {
+    setTo(city);
+    setShowToModal(false);
+    setSearchTo('');
+  };
+  const handleOperatorSelect = (operator) => {
+    setSelectedOperator(operator);
+    setShowOperatorModal(false);
+  };
+  const onChangeDate = (event, selectedDate) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setDate(selectedDate);
+    }
+  };
+  const formatDate = (date) => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+  const handleSearch = () => {
+    if (from !== 'Select From' && to !== 'Select To') {
+      router.push({
+        pathname: '/busRoutes',
+        params: {
+          from,
+          to,
+          date: date.toISOString(),
+          passengers,
+          operator: selectedOperator
+        }
+      });
+    }
+  };
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.greeting}>Hello {name || 'Traveler'}!</Text>
+      <Image source={require('../../assets/LOGO.jpg')} style={styles.logo} />
+      <Text style={styles.tagline}>Book bus tickets across Pakistan</Text>
+
+      <View style={styles.sliderContainer}>
+        <FlatList
+          data={images}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <View style={{ width: width - 40, height: 150 }}>
+              <Image source={item} style={styles.slideImage} />
+            </View>
+          )}
+          keyExtractor={(_, index) => index.toString()}
+        />
+      </View>
+
+      {/* Booking Form */}
+      <View style={styles.bookingCard}>
+        <Text style={styles.bookingTitle}>Find Buses</Text>
+        
+        {/* Route Selection */}
+        <View style={styles.routeContainer}>
+          <TouchableOpacity 
+            style={styles.cityButton}
+            onPress={() => setShowFromModal(true)}
+          >
+            <MaterialIcons name="location-on" size={20} color="#2E86C1" />
+            <Text style={styles.cityText}>{from}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.swapButton}
+            onPress={() => {
+              const temp = from;
+              setFrom(to);
+              setTo(temp);
+            }}
+          >
+            <Ionicons name="swap-horizontal" size={20} color="white" />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.cityButton}
+            onPress={() => setShowToModal(true)}
+          >
+            <MaterialIcons name="location-searching" size={20} color="#2E86C1" />
+            <Text style={styles.cityText}>{to}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Date Selection */}
+        <TouchableOpacity 
+          style={styles.dateButton}
+          onPress={() => setShowDatePicker(true)}
+        >
+          <FontAwesome name="calendar" size={18} color="#2E86C1" />
+          <Text style={styles.dateText}>{formatDate(date)}</Text>
+        </TouchableOpacity>
+
+        {showDatePicker && (
+          <DateTimePicker
+            value={date}
+            mode="date"
+            display="default"
+            onChange={onChangeDate}
+            minimumDate={new Date()}
+          />
+        )}
+
+        {/* Passengers and Operator */}
+        <View style={styles.optionsRow}>
+          <View style={styles.optionBox}>
+            <Text style={styles.optionLabel}>Passengers</Text>
+            <View style={styles.counter}>
+              <TouchableOpacity onPress={() => setPassengers(Math.max(1, passengers - 1))}>
+                <MaterialIcons name="remove" size={24} color="#2E86C1" />
+              </TouchableOpacity>
+              <Text style={styles.counterText}>{passengers}</Text>
+              <TouchableOpacity onPress={() => setPassengers(passengers + 1)}>
+                <MaterialIcons name="add" size={24} color="#2E86C1" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.optionBox}>
+            <Text style={styles.optionLabel}>Operator</Text>
+            <TouchableOpacity 
+              style={styles.operatorButton}
+              onPress={() => setShowOperatorModal(true)}
+            >
+              <Text style={styles.operatorText}>{selectedOperator}</Text>
+              <MaterialIcons name="arrow-drop-down" size={20} color="#2E86C1" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Search Button */}
+        <TouchableOpacity 
+          style={[styles.searchButton, (from === 'Select From' || to === 'Select To') && styles.disabledButton]}
+          onPress={handleSearch}
+          disabled={from === 'Select From' || to === 'Select To'}
+        >
+          <Text style={styles.searchButtonText}>Search Buses</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* From City Modal */}
+      <Modal visible={showFromModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Departure City</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search cities..."
+              value={searchFrom}
+              onChangeText={setSearchFrom}
+            />
+            <FlatList
+              data={cities.filter(city => 
+                city.toLowerCase().includes(searchFrom.toLowerCase())
+              )}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.cityItem}
+                  onPress={() => handleFromSelect(item)}
+                >
+                  <Text style={styles.cityName}>{item}</Text>
+                </TouchableOpacity>
+              )}
+              keyExtractor={item => item}
+            />
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={() => setShowFromModal(false)}
+            >
+              <Text style={styles.closeText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* To City Modal */}
+      <Modal visible={showToModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Destination City</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search cities..."
+              value={searchTo}
+              onChangeText={setSearchTo}
+            />
+            <FlatList
+              data={cities.filter(city => 
+                city.toLowerCase().includes(searchTo.toLowerCase())
+              )}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.cityItem}
+                  onPress={() => handleToSelect(item)}
+                >
+                  <Text style={styles.cityName}>{item}</Text>
+                </TouchableOpacity>
+              )}
+              keyExtractor={item => item}
+            />
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={() => setShowToModal(false)}
+            >
+              <Text style={styles.closeText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Operator Modal */}
+      <Modal visible={showOperatorModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Bus Operator</Text>
+            <FlatList
+              data={operators}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.cityItem}
+                  onPress={() => handleOperatorSelect(item)}
+                >
+                  <Text style={styles.cityName}>{item}</Text>
+                </TouchableOpacity>
+              )}
+              keyExtractor={item => item}
+            />
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={() => setShowOperatorModal(false)}
+            >
+              <Text style={styles.closeText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </ScrollView>
+  );
+}
+const styles = StyleSheet.create({
+  container: {
+    flexGrow: 1,
+    backgroundColor: '#F8F9F9',
+    padding: 15,
+  },
+  greeting: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#9370DB',
+    marginBottom: 10,
+    marginTop:80,
+
+  },
+  logo: {
+    width: 120,
+    height: 60,
+    resizeMode: 'contain',
+    marginBottom: 10,
+  },
+  tagline: {
+    fontSize: 18,
+    color: 'Purple',
+    marginBottom: 40,
+  },
+  sliderContainer: {
+    height: 160,
+    marginBottom: 20,
+  },
+  slideImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
+  },
+  bookingCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  bookingTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  routeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  cityButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EBF5FB',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D6EAF8',
+  },
+  cityText: {
+    marginLeft: 8,
+    fontSize: 16,
+    color: '#2874A6',
+  },
+  swapButton: {
+    backgroundColor: '#2E86C1',
+    padding: 8,
+    borderRadius: 20,
+    marginHorizontal: 10,
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EBF5FB',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D6EAF8',
+    marginBottom: 15,
+  },
+  dateText: {
+    marginLeft: 10,
+    fontSize: 16,
+    color: '#2874A6',
+  },
+  optionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  optionBox: {
+    width: '48%',
+  },
+  optionLabel: {
+    fontSize: 14,
+    color: '#5D6D7E',
+    marginBottom: 8,
+  },
+  counter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#EBF5FB',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D6EAF8',
+  },
+  counterText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2C3E50',
+  },
+  operatorButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#EBF5FB',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D6EAF8',
+  },
+  operatorText: {
+    fontSize: 14,
+    color: '#2874A6',
+  },
+  searchButton: {
+    backgroundColor: '#2E86C1',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  disabledButton: {
+    backgroundColor: '#95A5A6',
+  },
+  searchButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    width: '90%',
+    maxHeight: '70%',
+    borderRadius: 12,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    marginBottom: 15,
+  },
+  searchInput: {
+    backgroundColor: '#F2F3F4',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  cityItem: {
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EAEDED',
+  },
+  cityName: {
+    fontSize: 16,
+    color: '#2C3E50',
+  },
+  closeButton: {
+    marginTop: 15,
+    padding: 12,
+    backgroundColor: '#2E86C1',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  closeText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+});
+Great job on creating the bus booking screen! Now that you have the home screen ready, here's what you should do next to complete your bus booking app:
+
+Next Steps to Build Your App:
+1. Create the Bus Routes/Results Screen
+This screen will display available buses based on the user's search criteria
+
+Should show:
+
+Bus operator
+
+Departure/arrival times
+
+Price
+
+Seats available
+
+Duration of journey
+
+Each listing should be clickable to view details
+
+2. Create Bus Details Screen
+Shows complete details of selected bus
+
+Seat selection interface
+
+Fare breakdown
+
+Amenities (AC, wifi, etc.)
+
+"Book Now" button
+
+3. Create Booking/Payment Screen
+Passenger details form
+
+Payment method selection
+
+Fare summary
+
+Terms and conditions
+
+"Confirm Booking" button
+
+4. Create Booking Confirmation Screen
+Booking details
+
+Ticket/PNR number
+
+Download ticket option
+
+Share booking option
+
+5. User Profile Section
+Booking history
+
+Saved payment methods
+
+Account settings
+
+6. Implement Backend Integration
+Connect to your Supabase database for:
+
+Actual bus routes/schedules
+
+Booking records
+
+User accounts
+
+Recommended Implementation Order:
+First - Create the bus routes/results screen (most critical after home screen)
+
+bash
+touch app/busRoutes.js
+Then - Implement the bus details screen
+
+bash
+touch app/busDetails.js
+Next - Build the booking/payment flow
+
+bash
+touch app/bookingScreen.js
+touch app/paymentScreen.js
+Finally - Add user profile and history sections
+
+bash
+touch app/profile.js
+touch app/bookingHistory.js
+Example Bus Routes Screen Starter Code (busRoutes.js):
+jsx
+import { useLocalSearchParams } from 'expo-router';
+import { useState, useEffect } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { supabase } from './SupabaseClient';
+
+export default function BusRoutes() {
+  const params = useLocalSearchParams();
+  const [buses, setBuses] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch buses based on search parameters
+  useEffect(() => {
+    async function fetchBuses() {
+      try {
+        const { data, error } = await supabase
+          .from('buses')
+          .select('*')
+          .eq('from_city', params.from)
+          .eq('to_city', params.to)
+          .gte('departure_time', new Date(params.date).toISOString());
+
+        if (error) throw error;
+        setBuses(data);
+      } catch (error) {
+        console.error('Error fetching buses:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchBuses();
+  }, []);
+
+  const renderBusItem = ({ item }) => (
+    <TouchableOpacity 
+      style={styles.busCard}
+      onPress={() => router.push(`/busDetails?id=${item.id}`)}
+    >
+      <View style={styles.busHeader}>
+        <Text style={styles.busOperator}>{item.operator}</Text>
+        <Text style={styles.busType}>{item.type}</Text>
+      </View>
+      
+      <View style={styles.timingContainer}>
+        <View style={styles.timing}>
+          <Text style={styles.time}>{item.departure_time}</Text>
+          <Text style={styles.city}>{params.from}</Text>
+        </View>
+        
+        <View style={styles.duration}>
+          <Text style={styles.durationText}>{item.duration}</Text>
+        </View>
+        
+        <View style={styles.timing}>
+          <Text style={styles.time}>{item.arrival_time}</Text>
+          <Text style={styles.city}>{params.to}</Text>
+        </View>
+      </View>
+      
+      <View style={styles.footer}>
+        <Text style={styles.price}>Rs. {item.price}</Text>
+        <Text style={styles.seats}>{item.available_seats} seats left</Text>
+      </View>
+    </TouchableOpacity>
+  );
+
+  return (
+    <View style={styles.container}>
+      {loading ? (
+        <Text>Loading buses...</Text>
+      ) : (
+        <FlatList
+          data={buses}
+          renderItem={renderBusItem}
+          keyExtractor={item => item.id.toString()}
+          contentContainerStyle={styles.list}
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 16,
+    backgroundColor: '#f5f5f5'
+  },
+  list: {
+    paddingBottom: 20
+  },
+  busCard: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  busHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12
+  },
+  busOperator: {
+    fontSize: 16,
+    fontWeight: 'bold'
+  },
+  busType: {
+    color: '#666'
+  },
+  timingContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  timing: {
+    alignItems: 'center'
+  },
+  time: {
+    fontSize: 18,
+    fontWeight: 'bold'
+  },
+  city: {
+    color: '#666'
+  },
+  duration: {
+    alignItems: 'center'
+  },
+  durationText: {
+    color: '#666'
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingTop: 12
+  },
+  price: {
+    fontWeight: 'bold',
+    color: '#2e86c1'
+  },
+  seats: {
+    color: '#666'
+  }
+});
+Additional Recommendations:
+Set Up Proper Navigation
+
+Organize your routes in app/_layout.js
+
+Consider using a tab navigator for main sections
+
+Add State Management
+
+For complex state (like booking process), consider using Zustand or Context API
+
+Enhance UI
+
+Add loading indicators
+
+Implement error handling
+
+Add empty state views
+
+Test Your App
+
+Test different search combinations
+
+Test the complete booking flow
+
+Test edge cases (no results, etc.)
+
+Would you like me to provide the implementation for any of these specific next screens? I can help with the bus details screen, booking flow, or any other component you want to tackle next.
+
+create it
+I'll help you create the complete flow from bus search results to booking confirmation. Let's build these screens step by step.
+
+1. First, let's create the Bus Routes Results screen (app/busRoutes.js):
+jsx
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState, useEffect } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { supabase } from './SupabaseClient';
+
+export default function BusRoutes() {
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const [buses, setBuses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    async function fetchBuses() {
+      try {
+        setLoading(true);
+        // Simulate API call delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        let query = supabase
+          .from('buses')
+          .select('*')
+          .eq('from_city', params.from)
+          .eq('to_city', params.to)
+          .gte('departure_time', new Date(params.date).toISOString());
+
+        if (params.operator !== 'Any Operator') {
+          query = query.eq('operator', params.operator);
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+        setBuses(data || []);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchBuses();
+  }, []);
+
+  const formatTime = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const renderBusItem = ({ item }) => (
+    <TouchableOpacity 
+      style={styles.busCard}
+      onPress={() => router.push({
+        pathname: '/busDetails',
+        params: { 
+          busId: item.id,
+          from: params.from,
+          to: params.to,
+          date: params.date,
+          passengers: params.passengers
+        }
+      })}
+    >
+      <View style={styles.busHeader}>
+        <Text style={styles.busOperator}>{item.operator}</Text>
+        <Text style={styles.busType}>{item.type} • {item.amenities}</Text>
+      </View>
+      
+      <View style={styles.timingContainer}>
+        <View style={styles.timing}>
+          <Text style={styles.time}>{formatTime(item.departure_time)}</Text>
+          <Text style={styles.city}>{params.from}</Text>
+        </View>
+        
+        <View style={styles.duration}>
+          <Text style={styles.durationText}>{item.duration} hrs</Text>
+          <View style={styles.durationLine} />
+        </View>
+        
+        <View style={styles.timing}>
+          <Text style={styles.time}>{formatTime(item.arrival_time)}</Text>
+          <Text style={styles.city}>{params.to}</Text>
+        </View>
+      </View>
+      
+      <View style={styles.footer}>
+        <Text style={styles.price}>Rs. {item.price * params.passengers}</Text>
+        <Text style={item.available_seats > 5 ? styles.seatsAvailable : styles.seatsLimited}>
+          {item.available_seats > 5 ? `${item.available_seats} seats available` : 'Only ' + item.available_seats + ' left'}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#2E86C1" />
+        <Text style={styles.loadingText}>Finding buses for you...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>Error loading buses: {error}</Text>
+      </View>
+    );
+  }
+
+  if (buses.length === 0) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.noBusesText}>No buses found for your search</Text>
+        <TouchableOpacity 
+          style={styles.searchAgainButton}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.searchAgainText}>Search Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.searchSummary}>
+        <Text style={styles.summaryText}>
+          {params.from} to {params.to} • {new Date(params.date).toDateString()} • {params.passengers} {params.passengers > 1 ? 'passengers' : 'passenger'}
+        </Text>
+      </View>
+      
+      <FlatList
+        data={buses}
+        renderItem={renderBusItem}
+        keyExtractor={item => item.id.toString()}
+        contentContainerStyle={styles.list}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5'
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#555'
+  },
+  errorText: {
+    color: 'red',
+    textAlign: 'center'
+  },
+  noBusesText: {
+    fontSize: 16,
+    color: '#555',
+    marginBottom: 20
+  },
+  searchAgainButton: {
+    backgroundColor: '#2E86C1',
+    padding: 12,
+    borderRadius: 8,
+    width: '60%',
+    alignItems: 'center'
+  },
+  searchAgainText: {
+    color: 'white',
+    fontWeight: 'bold'
+  },
+  searchSummary: {
+    backgroundColor: '#EBF5FB',
+    padding: 12,
+    marginBottom: 8
+  },
+  summaryText: {
+    color: '#2874A6',
+    textAlign: 'center'
+  },
+  list: {
+    padding: 12,
+    paddingBottom: 20
+  },
+  busCard: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  busHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12
+  },
+  busOperator: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2C3E50'
+  },
+  busType: {
+    color: '#7F8C8D',
+    fontSize: 12
+  },
+  timingContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  timing: {
+    alignItems: 'center',
+    flex: 1
+  },
+  time: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2C3E50'
+  },
+  city: {
+    color: '#7F8C8D',
+    fontSize: 12
+  },
+  duration: {
+    alignItems: 'center',
+    flex: 1
+  },
+  durationText: {
+    color: '#7F8C8D',
+    fontSize: 12
+  },
+  durationLine: {
+    height: 1,
+    width: '80%',
+    backgroundColor: '#BDC3C7',
+    marginVertical: 4
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#EAEDED',
+    paddingTop: 12
+  },
+  price: {
+    fontWeight: 'bold',
+    color: '#2E86C1',
+    fontSize: 16
+  },
+  seatsAvailable: {
+    color: '#27AE60'
+  },
+  seatsLimited: {
+    color: '#E74C3C'
+  }
+});
+2. Now let's create the Bus Details screen (app/busDetails.js):
+jsx
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { supabase } from './SupabaseClient';
+
+export default function BusDetails() {
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const [bus, setBus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedSeats, setSelectedSeats] = useState([]);
+  const [passengerDetails, setPassengerDetails] = useState(
+    Array(Number(params.passengers)).fill({ name: '', age: '', gender: '' })
+  );
+
+  useEffect(() => {
+    async function fetchBusDetails() {
+      try {
+        const { data, error } = await supabase
+          .from('buses')
+          .select('*')
+          .eq('id', params.busId)
+          .single();
+
+        if (error) throw error;
+        setBus(data);
+      } catch (error) {
+        console.error('Error fetching bus details:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchBusDetails();
+  }, []);
+
+  const formatTime = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const handleSeatSelection = (seatNumber) => {
+    if (selectedSeats.includes(seatNumber)) {
+      setSelectedSeats(selectedSeats.filter(seat => seat !== seatNumber));
+    } else {
+      if (selectedSeats.length < params.passengers) {
+        setSelectedSeats([...selectedSeats, seatNumber]);
+      }
+    }
+  };
+
+  const handleProceedToPayment = () => {
+    if (selectedSeats.length !== Number(params.passengers)) {
+      alert(`Please select ${params.passengers} seat(s)`);
+      return;
+    }
+
+    router.push({
+      pathname: '/payment',
+      params: {
+        busId: params.busId,
+        from: params.from,
+        to: params.to,
+        date: params.date,
+        passengers: params.passengers,
+        selectedSeats: selectedSeats.join(','),
+        totalPrice: (bus.price * params.passengers).toString()
+      }
+    });
+  };
+
+  if (loading || !bus) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text>Loading bus details...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerText}>{bus.operator}</Text>
+        <Text style={styles.busType}>{bus.type}</Text>
+      </View>
+
+      <View style={styles.routeContainer}>
+        <View style={styles.routeTiming}>
+          <Text style={styles.time}>{formatTime(bus.departure_time)}</Text>
+          <Text style={styles.city}>{params.from}</Text>
+        </View>
+        
+        <View style={styles.durationContainer}>
+          <Text style={styles.durationText}>{bus.duration} hrs</Text>
+          <View style={styles.durationLine} />
+        </View>
+        
+        <View style={styles.routeTiming}>
+          <Text style={styles.time}>{formatTime(bus.arrival_time)}</Text>
+          <Text style={styles.city}>{params.to}</Text>
+        </View>
+      </View>
+
+      <View style={styles.detailsContainer}>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Departure Date:</Text>
+          <Text style={styles.detailValue}>{new Date(params.date).toDateString()}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Amenities:</Text>
+          <Text style={styles.detailValue}>{bus.amenities}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Passengers:</Text>
+          <Text style={styles.detailValue}>{params.passengers}</Text>
+        </View>
+      </View>
+
+      <View style={styles.seatSelection}>
+        <Text style={styles.sectionTitle}>Select Seats ({params.passengers} needed)</Text>
+        <Image 
+          source={require('../../assets/bus-layout.png')} 
+          style={styles.busLayout}
+          resizeMode="contain"
+        />
+        <View style={styles.seatLegend}>
+          <View style={styles.legendItem}>
+            <View style={[styles.seatSample, styles.available]} />
+            <Text>Available</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.seatSample, styles.selected]} />
+            <Text>Selected</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.seatSample, styles.booked]} />
+            <Text>Booked</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.priceContainer}>
+        <Text style={styles.priceLabel}>Total Price:</Text>
+        <Text style={styles.priceValue}>Rs. {bus.price * params.passengers}</Text>
+      </View>
+
+      <TouchableOpacity 
+        style={styles.proceedButton}
+        onPress={handleProceedToPayment}
+      >
+        <Text style={styles.proceedButtonText}>Proceed to Payment</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+    padding: 16
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  header: {
+    marginBottom: 20,
+    alignItems: 'center'
+  },
+  headerText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#2C3E50'
+  },
+  busType: {
+    color: '#7F8C8D',
+    fontSize: 14
+  },
+  routeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    padding: 16,
+    backgroundColor: '#EBF5FB',
+    borderRadius: 8
+  },
+  routeTiming: {
+    alignItems: 'center',
+    flex: 1
+  },
+  time: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2C3E50'
+  },
+  city: {
+    color: '#7F8C8D',
+    fontSize: 14
+  },
+  durationContainer: {
+    alignItems: 'center',
+    flex: 1
+  },
+  durationText: {
+    color: '#7F8C8D'
+  },
+  durationLine: {
+    height: 1,
+    width: '80%',
+    backgroundColor: '#BDC3C7',
+    marginVertical: 4
+  },
+  detailsContainer: {
+    marginBottom: 20,
+    padding: 16,
+    backgroundColor: '#F8F9F9',
+    borderRadius: 8
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8
+  },
+  detailLabel: {
+    fontWeight: 'bold',
+    color: '#2C3E50'
+  },
+  detailValue: {
+    color: '#7F8C8D'
+  },
+  seatSelection: {
+    marginBottom: 20
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    marginBottom: 12
+  },
+  busLayout: {
+    width: '100%',
+    height: 200,
+    marginBottom: 12
+  },
+  seatLegend: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 10
+  },
+  legendItem: {
+    alignItems: 'center'
+  },
+  seatSample: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    marginBottom: 4
+  },
+  available: {
+    backgroundColor: '#27AE60'
+  },
+  selected: {
+    backgroundColor: '#2E86C1'
+  },
+  booked: {
+    backgroundColor: '#E74C3C'
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    padding: 16,
+    backgroundColor: '#EBF5FB',
+    borderRadius: 8
+  },
+  priceLabel: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2C3E50'
+  },
+  priceValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2E86C1'
+  },
+  proceedButton: {
+    backgroundColor: '#2E86C1',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center'
+  },
+  proceedButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold'
+  }
+});
+3. Create the Payment Screen (app/payment.js):
+jsx
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { supabase } from './SupabaseClient';
+
+export default function PaymentScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const [paymentMethod, setPaymentMethod] = useState('credit_card');
+  const [cardDetails, setCardDetails] = useState({
+    number: '',
+    name: '',
+    expiry: '',
+    cvv: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handlePayment = async () => {
+    setLoading(true);
+    try {
+      // In a real app, you would process payment here
+      // For demo, we'll just create a booking record
+      
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert([{
+          bus_id: params.busId,
+          from: params.from,
+          to: params.to,
+          travel_date: params.date,
+          seats: params.selectedSeats,
+          total_amount: params.totalPrice,
+          status: 'confirmed'
+        }])
+        .select();
+
+      if (error) throw error;
+
+      router.push({
+        pathname: '/confirmation',
+        params: {
+          bookingId: data[0].id,
+          ...params
+        }
+      });
+    } catch (error) {
+      alert('Payment failed: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <ScrollView style={styles.container}>
+      <Text style={styles.header}>Payment</Text>
+      
+      <View style={styles.summaryContainer}>
+        <Text style={styles.summaryHeader}>Booking Summary</Text>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Route:</Text>
+          <Text style={styles.summaryValue}>{params.from} to {params.to}</Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Date:</Text>
+          <Text style={styles.summaryValue}>{new Date(params.date).toDateString()}</Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Seats:</Text>
+          <Text style={styles.summaryValue}>{params.selectedSeats.replace(/,/g, ', ')}</Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Total:</Text>
+          <Text style={styles.totalPrice}>Rs. {params.totalPrice}</Text>
+        </View>
+      </View>
+
+      <View style={styles.paymentMethods}>
+        <Text style={styles.sectionTitle}>Payment Method</Text>
+        <TouchableOpacity 
+          style={[styles.methodButton, paymentMethod === 'credit_card' && styles.methodSelected]}
+          onPress={() => setPaymentMethod('credit_card')}
+        >
+          <Text>Credit/Debit Card</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.methodButton, paymentMethod === 'jazzcash' && styles.methodSelected]}
+          onPress={() => setPaymentMethod('jazzcash')}
+        >
+          <Text>JazzCash</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.methodButton, paymentMethod === 'easypaisa' && styles.methodSelected]}
+          onPress={() => setPaymentMethod('easypaisa')}
+        >
+          <Text>EasyPaisa</Text>
+        </TouchableOpacity>
+      </View>
+
+      {paymentMethod === 'credit_card' && (
+        <View style={styles.cardForm}>
+          <TextInput
+            style={styles.input}
+            placeholder="Card Number"
+            keyboardType="numeric"
+            value={cardDetails.number}
+            onChangeText={(text) => setCardDetails({...cardDetails, number: text})}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Cardholder Name"
+            value={cardDetails.name}
+            onChangeText={(text) => setCardDetails({...cardDetails, name: text})}
+          />
+          <View style={styles.row}>
+            <TextInput
+              style={[styles.input, styles.halfInput]}
+              placeholder="MM/YY"
+              value={cardDetails.expiry}
+              onChangeText={(text) => setCardDetails({...cardDetails, expiry: text})}
+            />
+            <TextInput
+              style={[styles.input, styles.halfInput]}
+              placeholder="CVV"
+              keyboardType="numeric"
+              secureTextEntry
+              value={cardDetails.cvv}
+              onChangeText={(text) => setCardDetails({...cardDetails, cvv: text})}
+            />
+          </View>
+        </View>
+      )}
+
+      <TouchableOpacity 
+        style={styles.payButton}
+        onPress={handlePayment}
+        disabled={loading}
+      >
+        <Text style={styles.payButtonText}>
+          {loading ? 'Processing...' : `Pay Rs. ${params.totalPrice}`}
+        </Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+    padding: 16
+  },
+  header: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    color: '#2C3E50'
+  },
+  summaryContainer: {
+    backgroundColor: '#F8F9F9',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 20
+  },
+  summaryHeader: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#2C3E50'
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8
+  },
+  summaryLabel: {
+    color: '#7F8C8D'
+  },
+  summaryValue: {
+    fontWeight: '500'
+  },
+  totalPrice: {
+    fontWeight: 'bold',
+    color: '#2E86C1',
+    fontSize: 16
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#2C3E50'
+  },
+  paymentMethods: {
+    marginBottom: 20
+  },
+  methodButton: {
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#BDC3C7',
+    borderRadius: 8,
+    marginBottom: 8
+  },
+  methodSelected: {
+    borderColor: '#2E86C1',
+    backgroundColor: '#EBF5FB'
+  },
+  cardForm: {
+    marginBottom: 20
+  },
+  input: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#BDC3C7',
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 12,
+    backgroundColor: '#fff'
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
+  halfInput: {
+    width: '48%'
+  },
+  payButton: {
+    backgroundColor: '#2E86C1',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10
+  },
+  payButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold'
+  }
+});
+4. Finally, create the Booking Confirmation screen (app/confirmation.js):
+jsx
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Share } from 'react-native';
+import { supabase } from './SupabaseClient';
+
+export default function ConfirmationScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const [booking, setBooking] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchBooking() {
+      try {
+        const { data, error } = await supabase
+          .from('bookings')
+          .select('*, buses(*)')
+          .eq('id', params.bookingId)
+          .single();
+
+        if (error) throw error;
+        setBooking(data);
+      } catch (error) {
+        console.error('Error fetching booking:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchBooking();
+  }, []);
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: `I've booked a bus ticket with ${booking.buses.operator} from ${params.from} to ${params.to} on ${new Date(params.date).toDateString()}. Booking ID: ${params.bookingId}`,
+      });
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
+  if (loading || !booking) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text>Loading booking details...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.successContainer}>
+        <Image 
+          source={require('../../assets/success-icon.png')}
+          style={styles.successIcon}
+        />
+        <Text style={styles.successTitle}>Booking Confirmed!</Text>
+        <Text style={styles.successText}>Your booking ID is #{params.bookingId}</Text>
+      </View>
+
+      <View style={styles.detailsContainer}>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Operator:</Text>
+          <Text style={styles.detailValue}>{booking.buses.operator}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Route:</Text>
+          <Text style={styles.detailValue}>{params.from} to {params.to}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Travel Date:</Text>
+          <Text style={styles.detailValue}>{new Date(params.date).toDateString()}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Departure:</Text>
+          <Text style={styles.detailValue}>{new Date(booking.buses.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Seats:</Text>
+          <Text style={styles.detailValue}>{params.selectedSeats.replace(/,/g, ', ')}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Total Paid:</Text>
+          <Text style={styles.detailPrice}>Rs. {params.totalPrice}</Text>
+        </View>
+      </View>
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity 
+          style={[styles.button, styles.shareButton]}
+          onPress={handleShare}
+        >
+          <Text style={styles.buttonText}>Share Ticket</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.button, styles.homeButton]}
+          onPress={() => router.push('/')}
+        >
+          <Text style={[styles.buttonText, { color: '#2E86C1' }]}>Back to Home</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+    padding: 20
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  successContainer: {
+    alignItems: 'center',
+    marginVertical: 30
+  },
+  successIcon: {
+    width: 80,
+    height: 80,
+    marginBottom: 15
+  },
+  successTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#27AE60',
+    marginBottom: 5
+  },
+  successText: {
+    fontSize: 16,
+    color: '#7F8C8D'
+  },
+  detailsContainer: {
+    backgroundColor: '#F8F9F9',
+    borderRadius: 10,
+    padding: 20,
+    marginBottom: 20
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12
+  },
+  detailLabel: {
+    color: '#7F8C8D',
+    fontSize: 16
+  },
+  detailValue: {
+    fontSize: 16,
+    fontWeight: '500'
+  },
+  detailPrice: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2E86C1'
+  },
+  buttonContainer: {
+    marginTop: 20
+  },
+  button: {
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  shareButton: {
+    backgroundColor: '#2E86C1'
+  },
+  homeButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#2E86C1'
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold'
+  }
+});
+Important Assets Needed:
+Create these image assets in your assets folder:
+
+bus-layout.png - A diagram of bus seats
+
+success-icon.png - A checkmark or success icon
+
+Database Setup:
+Make sure your Supabase database has these tables:
+
+buses table:
+
+sql
+CREATE TABLE buses (
+  id SERIAL PRIMARY KEY,
+  operator TEXT NOT NULL,
+  type TEXT,
+  amenities TEXT,
+  from_city TEXT NOT NULL,
+  to_city TEXT NOT NULL,
+  departure_time TIMESTAMP NOT NULL,
+  arrival_time TIMESTAMP NOT NULL,
+  duration NUMERIC,
+  price NUMERIC,
+  available_seats INTEGER
+);
+bookings table:
+
+sql
+CREATE TABLE bookings (
+  id SERIAL PRIMARY KEY,
+  bus_id INTEGER REFERENCES buses(id),
+  user_id UUID REFERENCES auth.users,
+  from_city TEXT NOT NULL,
+  to_city TEXT NOT NULL,
+  travel_date DATE NOT NULL,
+  seats TEXT NOT NULL,
+  total_amount NUMERIC NOT NULL,
+  status TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+Navigation Flow:
+Home Screen (search) → Bus Routes → Bus Details → Payment → Confirmation
+
+To complete the setup:
+
+Create all these files in your app directory
+
+Add sample bus data to your Supabase database
+
+Test the complete flow
+
+Would you like me to provide any additional screens (like user profile) or explain any part in more detail?
+
+
+2. Update your database schema:
+Make sure your bookings table has these columns:
+
+sql
+CREATE TABLE bookings (
+  id SERIAL PRIMARY KEY,
+  user_id UUID REFERENCES auth.users NOT NULL,
+  bus_id INTEGER REFERENCES buses(id) NOT NULL,
+  from_city TEXT NOT NULL,
+  to_city TEXT NOT NULL,
+  travel_date DATE NOT NULL,
+  seats TEXT NOT NULL,  -- Comma-separated seat numbers
+  total_amount NUMERIC NOT NULL,
+  status TEXT DEFAULT 'confirmed',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+3. Features of this implementation:
+Professional Ticket Design:
+
+Clean e-ticket layout with all booking details
+
+Color-coded sections for better readability
+
+Simulated barcode for scanning
+
+Personalization:
+
+Shows user's name from their profile
+
+Lists all booked seats
+
+Displays complete journey details
+
+Share Functionality:
+
+Users can share ticket details via any app
+
+Shares essential booking information
+
+Responsive Design:
+
+Works on all screen sizes
+
+Print-friendly layout
+
+Status Tracking:
+
+Shows booking status (confirmed/cancelled)
+
+Displays payment amount
+
+To Use This:
+When creating a booking, make sure to:
+
+javascript
+await supabase.from('bookings').insert({
+  user_id: user.id,
+  bus_id: params.busId,
+  from_city: params.from,
+  to_city: params.to,
+  travel_date: params.date,
+  seats: params.selectedSeats,
+  total_amount: params.totalPrice
+});
+The confirmation screen will automatically:
+
+Fetch the booking details
+
+Display them in ticket format
+
+Allow sharing
+
+Would you like me to add any of these additional features?
+
+QR code generation for tickets
+
+Download as PDF option
+
+Add to calendar functionality
+
+Seat map visualization on the ticket
+
+i haven't creaeda specific booing tale i havetwo tables buses and users
+ow what?
+should i creaye a new table?
+2. Update your database schema:
+Make sure your bookings table has these columns:
+
+sql
+CREATE TABLE bookings (
+  id SERIAL PRIMARY KEY,
+  user_id UUID REFERENCES auth.users NOT NULL,
+  bus_id INTEGER REFERENCES buses(id) NOT NULL,
+  from_city TEXT NOT NULL,
+  to_city TEXT NOT NULL,
+  travel_date DATE NOT NULL,
+  seats TEXT NOT NULL,  -- Comma-separated seat numbers
+  total_amount NUMERIC NOT NULL,
+  status TEXT DEFAULT 'confirmed',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+Yes, you should create a dedicated bookings table to properly track reservations. Here's exactly how to implement this:
+
+Step 1: Create the Bookings Table
+Run this SQL in your Supabase SQL Editor:
+
+sql
+CREATE TABLE public.bookings (
+  id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  user_id UUID REFERENCES auth.users NOT NULL,
+  bus_id BIGINT REFERENCES public.buses NOT NULL,
+  from_city TEXT NOT NULL,
+  to_city TEXT NOT NULL,
+  travel_date TIMESTAMPTZ NOT NULL,
+  seats TEXT NOT NULL,        -- Comma-separated seat numbers (e.g., "1A,2B")
+  total_amount NUMERIC(10,2) NOT NULL,
+  status TEXT DEFAULT 'confirmed',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable Row Level Security
+ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
+
+-- Create policies
+CREATE POLICY "Users can view their bookings" 
+ON public.bookings
+FOR SELECT
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create bookings"
+ON public.bookings
+FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+Step 2: Modify Your Payment Process
+Update your payment confirmation logic to create a booking record:
+
+jsx
+// In your payment screen
+const handlePaymentConfirmation = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    const { data, error } = await supabase
+      .from('bookings')
+      .insert({
+        user_id: user.id,
+        bus_id: params.busId,
+        from_city: params.from,
+        to_city: params.to,
+        travel_date: params.date,
+        seats: params.selectedSeats,
+        total_amount: params.totalPrice
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    router.push({
+      pathname: '/confirmation',
+      params: {
+        bookingId: data.id,
+        ...params
+      }
+    });
+  } catch (error) {
+    alert('Payment failed: ' + error.message);
+  }
+};
+Step 3: Update Confirmation Screen
+Modify your confirmation screen to fetch from the bookings table:
+
+jsx
+useEffect(() => {
+  async function fetchBooking() {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(`
+        *,
+        buses (
+          operator,
+          departure_time,
+          arrival_time,
+          amenities
+        )
+      `)
+      .eq('id', params.bookingId)
+      .single();
+
+    if (error) console.error('Error:', error);
+    else setBooking(data);
+  }
+  fetchBooking();
+}, []);
+Why This Structure Works Best:
+Data Integrity:
+
+Foreign keys ensure valid bus/user references
+
+Timestamps track booking history
+
+Efficient Queries:
+
+sql
+-- Get all bookings for a user
+SELECT * FROM bookings 
+WHERE user_id = 'user-uuid' 
+ORDER BY travel_date DESC;
+
+-- Get all bookings for a bus
+SELECT * FROM bookings 
+WHERE bus_id = 123 
+AND travel_date > NOW();
+Scalability:
+
+Easily add features like:
+
+Cancellations (status = 'cancelled')
+
+Seat changes (update seats field)
+
+Payment tracking (add payment_id column)
+
+Additional Recommendations:
+Add an index for faster queries:
+
+sql
+CREATE INDEX idx_bookings_user ON bookings(user_id);
+CREATE INDEX idx_bookings_bus ON bookings(bus_id);
+Consider adding these columns later:
+
+sql
+ALTER TABLE bookings
+ADD COLUMN payment_method TEXT,
+ADD COLUMN cancellation_reason TEXT;
+For seat management, create a separate table if needed:
+
+sql
+CREATE TABLE bus_seats (
+  bus_id BIGINT REFERENCES buses,
+  seat_number TEXT,
+  is_booked BOOLEAN DEFAULT false,
+  booking_id BIGINT REFERENCES bookings,
+  PRIMARY KEY (bus_id, seat_number)
+);
+This setup gives you a professional booking system that can:
+
+Track complete reservation history
+
+Handle cancellations
+
+Support reporting
+
+Manage seat inventory
+
+Would you like me to provide the complete end-to-end flow including:
+
+Seat availability checking API?
+
+Booking cancellation functionality?
+
+Admin dashboard queries?
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { supabase } from './SupabaseClient';
+
+export default function ConfirmationScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const [booking, setBooking] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Add this useEffect block
+  useEffect(() => {
+    async function fetchBooking() {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('bookings')
+          .select(`
+            *,
+            buses (
+              operator,
+              departure_time,
+              arrival_time,
+              amenities,
+              duration
+            )
+          `)
+          .eq('id', params.bookingId)
+          .single();
+
+        if (error) throw error;
+        setBooking(data);
+      } catch (err) {
+        setError(err.message);
+        console.error('Error fetching booking:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchBooking();
+  }, []); // Empty dependency array to run only once
+
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" />
+        <Text>Loading your ticket...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>Error: {error}</Text>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.linkText}>Go back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!booking) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text>Booking not found</Text>
+      </View>
+    );
+  }
+
+  // Format date and time
+  const departureTime = new Date(booking.buses.departure_time).toLocaleTimeString([], { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.header}>Booking Confirmed!</Text>
+      
+      <View style={styles.ticket}>
+        <Text style={styles.ticketHeader}>{booking.buses.operator}</Text>
+        
+        <View style={styles.ticketBody}>
+          <View style={styles.row}>
+            <Text style={styles.label}>From:</Text>
+            <Text style={styles.value}>{booking.from_city}</Text>
+          </View>
+          
+          <View style={styles.row}>
+            <Text style={styles.label}>To:</Text>
+            <Text style={styles.value}>{booking.to_city}</Text>
+          </View>
+          
+          <View style={styles.row}>
+            <Text style={styles.label}>Date:</Text>
+            <Text style={styles.value}>
+              {new Date(booking.travel_date).toDateString()}
+            </Text>
+          </View>
+          
+          <View style={styles.row}>
+            <Text style={styles.label}>Time:</Text>
+            <Text style={styles.value}>{departureTime}</Text>
+          </View>
+          
+          <View style={styles.row}>
+            <Text style={styles.label}>Seats:</Text>
+            <Text style={styles.value}>{booking.seats.replace(/,/g, ', ')}</Text>
+          </View>
+          
+          <View style={styles.row}>
+            <Text style={styles.label}>Amount Paid:</Text>
+            <Text style={styles.value}>Rs. {booking.total_amount}</Text>
+          </View>
+        </View>
+        
+        <Text style={styles.ticketFooter}>
+          Booking ID: {params.bookingId}
+        </Text>
+      </View>
+
+      <TouchableOpacity 
+        style={styles.button}
+        onPress={() => router.push('/')}
+      >
+        <Text style={styles.buttonText}>Back to Home</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#f5f5f5'
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  header: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center'
+  },
+  ticket: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3
+  },
+  ticketHeader: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    color: '#2E86C1'
+  },
+  ticketBody: {
+    marginBottom: 15
+  },
+  row: {
+    flexDirection: 'row',
+    marginBottom: 10
+  },
+  label: {
+    width: 100,
+    fontWeight: 'bold',
+    color: '#555'
+  },
+  value: {
+    flex: 1
+  },
+  ticketFooter: {
+    fontSize: 12,
+    color: '#777',
+    textAlign: 'center'
+  },
+  button: {
+    backgroundColor: '#2E86C1',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center'
+  },
+  buttonText: {
+    color: 'white',
+    fontWeight: 'bold'
+  },
+  errorText: {
+    color: 'red',
+    marginBottom: 10
+  },
+  linkText: {
+    color: '#2E86C1',
+    textDecorationLine: 'underline'
+  }
+});
+Key Points:
+Placement: The useEffect goes at the top of your confirmation screen component, right after the state declarations.
+
+What it does:
+
+Fetches the complete booking details including bus information
+
+Handles loading and error states
+
+Joins data from both bookings and buses tables
+
+When it runs:
+
+Only once when the screen loads (due to empty dependency array [])
+
+Re-fetches if params.bookingId changes
+
+Data Flow:
+
+Diagram
+Code
+
+
+
+
+
+
+
+Additional Recommendations:
+Add a Refresh Button:
+
+jsx
+<TouchableOpacity onPress={fetchBooking}>
+  <Text>Refresh Status</Text>
+</TouchableOpacity>
+Cache Control:
+
+jsx
+.single({ count: 'exact' });  // Ensures fresh data
+Error Handling:
+
+jsx
+if (error?.code === 'PGRST116') {
+  // Handle not found error specifically
+}
+This implementation gives you a complete, production-ready confirmation screen that:
+
+Shows all booking details
+
+Handles loading/error states
+
+Displays a printable ticket format
+
+Maintains data consistency across tables
+
+
+

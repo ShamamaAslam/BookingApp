@@ -13,13 +13,33 @@ export default function RootLayout() {
   });
 
   if (!loaded) {
-    // Async font loading only occurs in development.
     return null;
   }
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="busRoutes" options={{ title: 'Available Buses' }} />
+        <Stack.Screen 
+          name="seatMap" 
+          options={{ 
+            title: 'Book Your Seats',
+            headerStyle: { backgroundColor: '#003580' },
+            headerTintColor: '#fff',
+            headerTitleStyle: { fontWeight: 'bold' },
+          }} 
+        />
+        <Stack.Screen 
+          name="bookingConfirmation" 
+          options={{ 
+            title: 'Booking Confirmation',
+            headerBackTitle: 'Back',
+            headerStyle: { backgroundColor: '#003580' },
+            headerTintColor: '#fff',
+            headerTitleStyle: { fontWeight: 'bold' },
+          }} 
+        />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>

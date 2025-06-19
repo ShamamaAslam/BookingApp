@@ -1,24 +1,11 @@
 import { FontAwesome, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import {
-  Dimensions,
-  FlatList,
-  Image,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
-} from 'react-native';
+import { memo, useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Dimensions, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from './SupabaseClient';
 
 const { width } = Dimensions.get('window');
-
-// Bus-specific images
 const images = [
   require('../../assets/Offer1.jpg'),
   require('../../assets/Offer2.jpg'),
@@ -26,25 +13,77 @@ const images = [
   require('../../assets/Offer4.jpg'),
   require('../../assets/Offer5.jpg'),
 ];
-
-// Pakistani cities common for bus routes
 const cities = [
-  'Lahore','Lodhran', 'Karachi', 'Islamabad', 'Rawalpindi', 'Faisalabad',
-  'Multan', 'Peshawar', 'Quetta', 'Gujranwala', 'Hyderabad',
-  'Sialkot', 'Bahawalpur', 'Sargodha', 'Sukkur', 'Larkana'
-];
+  'Lahore','Lodhran', 'Karachi', 'Islamabad', 'Rawalpindi', 'Faisalabad','Multan', 'Peshawar', 'Quetta', 'Gujranwala', 'Hyderabad','Sialkot', 'Bahawalpur', 'Sargodha', 'Sukkur', 'Larkana'];
+const operators = ['Any Operator','Daewoo Express', 'Faisal Movers', 'Skyways', 'Niazi Express','Bilal Travels', 'Sindh Express', 'Pakistan Express'];
 
-// Bus operators
-const operators = [
-  'Any Operator',
-  'Daewoo Express', 
-  'Faisal Movers', 
-  'Skyways', 
-  'Niazi Express',
-  'Bilal Travels', 
-  'Sindh Express', 
-  'Pakistan Express'
-];
+const CityModalContent = memo(({ cities, searchText, onSelect, onClose, title }) => {
+  const filteredCities = cities.filter(city => 
+    city.toLowerCase().includes(searchText.toLowerCase())
+  );
+
+  return (
+    <View style={styles.modalContent}>
+      <Text style={styles.modalTitle}>{title}</Text>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search cities..."
+        value={searchText}
+        onChangeText={(text) => onSelect(text, true)}
+      />
+      <FlatList
+        data={filteredCities}
+        renderItem={({ item }) => (
+          <TouchableOpacity 
+            style={styles.cityItem}
+            onPress={() => onSelect(item, false)}
+          >
+            <Text style={styles.cityName}>{item}</Text>
+          </TouchableOpacity>
+        )}
+        keyExtractor={item => item}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+      />
+      <TouchableOpacity 
+        style={styles.closeButton}
+        onPress={onClose}
+      >
+        <Text style={styles.closeText}>Close</Text>
+      </TouchableOpacity>
+    </View>
+  );
+});
+
+const OperatorModalContent = memo(({ operators, onSelect, onClose }) => {
+  return (
+    <View style={styles.modalContent}>
+      <Text style={styles.modalTitle}>Select Bus Operator</Text>
+      <FlatList
+        data={operators}
+        renderItem={({ item }) => (
+          <TouchableOpacity 
+            style={styles.cityItem}
+            onPress={() => onSelect(item)}
+          >
+            <Text style={styles.cityName}>{item}</Text>
+          </TouchableOpacity>
+        )}
+        keyExtractor={item => item}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={5}
+      />
+      <TouchableOpacity 
+        style={styles.closeButton}
+        onPress={onClose}
+      >
+        <Text style={styles.closeText}>Close</Text>
+      </TouchableOpacity>
+    </View>
+  );
+});
 
 export default function BusBookingScreen() {
   const router = useRouter();
@@ -60,85 +99,139 @@ export default function BusBookingScreen() {
   const [searchTo, setSearchTo] = useState('');
   const [selectedOperator, setSelectedOperator] = useState('Any Operator');
   const [showOperatorModal, setShowOperatorModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [logoLoaded, setLogoLoaded] = useState(false);
+
+  // Calculate maximum date (1 week from today)
+  const maxDate = new Date();
+  maxDate.setDate(maxDate.getDate() + 7);
 
   // Fetch user name
   useEffect(() => {
+    let isMounted = true;
+    
     async function fetchUserName() {
       const { data: { user }, error } = await supabase.auth.getUser();
-      if (!error && user) {
+      if (isMounted && !error && user) {
         setName(user.user_metadata?.name || '');
       }
     }
+    
     fetchUserName();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const handleFromSelect = (city) => {
-    setFrom(city);
-    setShowFromModal(false);
-    setSearchFrom('');
-  };
+  const handleFromSelect = useCallback((city, isSearchText) => {
+    if (isSearchText) {
+      setSearchFrom(city);
+    } else {
+      setFrom(city);
+      setShowFromModal(false);
+      setSearchFrom('');
+    }
+  }, []);
 
-  const handleToSelect = (city) => {
-    setTo(city);
-    setShowToModal(false);
-    setSearchTo('');
-  };
+  const handleToSelect = useCallback((city, isSearchText) => {
+    if (isSearchText) {
+      setSearchTo(city);
+    } else {
+      setTo(city);
+      setShowToModal(false);
+      setSearchTo('');
+    }
+  }, []);
 
-  const handleOperatorSelect = (operator) => {
+  const handleOperatorSelect = useCallback((operator) => {
     setSelectedOperator(operator);
     setShowOperatorModal(false);
-  };
+  }, []);
 
-  const onChangeDate = (event, selectedDate) => {
+  const onChangeDate = useCallback((event, selectedDate) => {
     setShowDatePicker(false);
     if (selectedDate) {
       setDate(selectedDate);
     }
-  };
+  }, []);
 
-  const formatDate = (date) => {
+  const formatDate = useCallback((date) => {
     return date.toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',
       day: 'numeric'
     });
-  };
+  }, []);
 
-  const handleSearch = () => {
+  const handleSearch = useCallback(async () => {
     if (from !== 'Select From' && to !== 'Select To') {
-      router.push({
-        pathname: '/busResults',
-        params: {
-          from,
-          to,
-          date: date.toISOString(),
-          passengers,
-          operator: selectedOperator
-        }
-      });
+      setIsLoading(true);
+      try {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        router.push({
+          pathname: '/BusRoutes',
+          params: {
+            from,
+            to,
+            date: date.toISOString(),
+            passengers,
+            operator: selectedOperator
+          }
+        });
+      } catch (error) {
+        console.error('Navigation error:', error);
+      } finally {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [from, to, date, passengers, selectedOperator]);
+
+  const swapCities = useCallback(() => {
+    const temp = from;
+    setFrom(to);
+    setTo(temp);
+  }, [from, to]);
+
+  const incrementPassengers = useCallback(() => {
+    setPassengers(p => p + 1);
+  }, []);
+
+  const decrementPassengers = useCallback(() => {
+    setPassengers(p => Math.max(1, p - 1));
+  }, []);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* Header */}
       <Text style={styles.greeting}>Hello {name || 'Traveler'}!</Text>
-      <Image source={require('../../assets/LOGO.jpg')} style={styles.logo} />
+      {!logoLoaded && <View style={[styles.logo, {backgroundColor: '#F8F9F9'}]} />}
+      <Image 
+        source={require('../../assets/LOGO.jpg')} 
+        style={styles.logo}
+        onLoad={() => setLogoLoaded(true)}
+      />
       <Text style={styles.tagline}>Book bus tickets across Pakistan</Text>
 
-      {/* Promotional Slider */}
       <View style={styles.sliderContainer}>
         <FlatList
           data={images}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
+          initialNumToRender={3}
+          maxToRenderPerBatch={3}
+          windowSize={3}
           renderItem={({ item }) => (
             <View style={{ width: width - 40, height: 150 }}>
-              <Image source={item} style={styles.slideImage} />
+              <Image 
+                source={item} 
+                style={styles.slideImage}
+                resizeMode="cover"
+              />
             </View>
           )}
-          keyExtractor={(_, index) => index.toString()}
+          keyExtractor={(_, index) => `image-${index}`}
         />
       </View>
 
@@ -158,11 +251,7 @@ export default function BusBookingScreen() {
 
           <TouchableOpacity 
             style={styles.swapButton}
-            onPress={() => {
-              const temp = from;
-              setFrom(to);
-              setTo(temp);
-            }}
+            onPress={swapCities}
           >
             <Ionicons name="swap-horizontal" size={20} color="white" />
           </TouchableOpacity>
@@ -192,6 +281,7 @@ export default function BusBookingScreen() {
             display="default"
             onChange={onChangeDate}
             minimumDate={new Date()}
+            maximumDate={maxDate}
           />
         )}
 
@@ -200,11 +290,11 @@ export default function BusBookingScreen() {
           <View style={styles.optionBox}>
             <Text style={styles.optionLabel}>Passengers</Text>
             <View style={styles.counter}>
-              <TouchableOpacity onPress={() => setPassengers(Math.max(1, passengers - 1))}>
+              <TouchableOpacity onPress={decrementPassengers}>
                 <MaterialIcons name="remove" size={24} color="#2E86C1" />
               </TouchableOpacity>
               <Text style={styles.counterText}>{passengers}</Text>
-              <TouchableOpacity onPress={() => setPassengers(passengers + 1)}>
+              <TouchableOpacity onPress={incrementPassengers}>
                 <MaterialIcons name="add" size={24} color="#2E86C1" />
               </TouchableOpacity>
             </View>
@@ -226,106 +316,50 @@ export default function BusBookingScreen() {
         <TouchableOpacity 
           style={[styles.searchButton, (from === 'Select From' || to === 'Select To') && styles.disabledButton]}
           onPress={handleSearch}
-          disabled={from === 'Select From' || to === 'Select To'}
+          disabled={from === 'Select From' || to === 'Select To' || isLoading}
         >
-          <Text style={styles.searchButtonText}>Search Buses</Text>
+          {isLoading ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <Text style={styles.searchButtonText}>Search Buses</Text>
+          )}
         </TouchableOpacity>
       </View>
 
       {/* From City Modal */}
-      <Modal visible={showFromModal} transparent animationType="slide">
+      <Modal visible={showFromModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Departure City</Text>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search cities..."
-              value={searchFrom}
-              onChangeText={setSearchFrom}
-            />
-            <FlatList
-              data={cities.filter(city => 
-                city.toLowerCase().includes(searchFrom.toLowerCase())
-              )}
-              renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.cityItem}
-                  onPress={() => handleFromSelect(item)}
-                >
-                  <Text style={styles.cityName}>{item}</Text>
-                </TouchableOpacity>
-              )}
-              keyExtractor={item => item}
-            />
-            <TouchableOpacity 
-              style={styles.closeButton}
-              onPress={() => setShowFromModal(false)}
-            >
-              <Text style={styles.closeText}>Close</Text>
-            </TouchableOpacity>
-          </View>
+          <CityModalContent 
+            cities={cities}
+            searchText={searchFrom}
+            onSelect={handleFromSelect}
+            onClose={() => setShowFromModal(false)}
+            title="Select Departure City"
+          />
         </View>
       </Modal>
 
       {/* To City Modal */}
-      <Modal visible={showToModal} transparent animationType="slide">
+      <Modal visible={showToModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Destination City</Text>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search cities..."
-              value={searchTo}
-              onChangeText={setSearchTo}
-            />
-            <FlatList
-              data={cities.filter(city => 
-                city.toLowerCase().includes(searchTo.toLowerCase())
-              )}
-              renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.cityItem}
-                  onPress={() => handleToSelect(item)}
-                >
-                  <Text style={styles.cityName}>{item}</Text>
-                </TouchableOpacity>
-              )}
-              keyExtractor={item => item}
-            />
-            <TouchableOpacity 
-              style={styles.closeButton}
-              onPress={() => setShowToModal(false)}
-            >
-              <Text style={styles.closeText}>Close</Text>
-            </TouchableOpacity>
-          </View>
+          <CityModalContent 
+            cities={cities}
+            searchText={searchTo}
+            onSelect={handleToSelect}
+            onClose={() => setShowToModal(false)}
+            title="Select Destination City"
+          />
         </View>
       </Modal>
 
       {/* Operator Modal */}
-      <Modal visible={showOperatorModal} transparent animationType="slide">
+      <Modal visible={showOperatorModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Bus Operator</Text>
-            <FlatList
-              data={operators}
-              renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.cityItem}
-                  onPress={() => handleOperatorSelect(item)}
-                >
-                  <Text style={styles.cityName}>{item}</Text>
-                </TouchableOpacity>
-              )}
-              keyExtractor={item => item}
-            />
-            <TouchableOpacity 
-              style={styles.closeButton}
-              onPress={() => setShowOperatorModal(false)}
-            >
-              <Text style={styles.closeText}>Close</Text>
-            </TouchableOpacity>
-          </View>
+          <OperatorModalContent 
+            operators={operators}
+            onSelect={handleOperatorSelect}
+            onClose={() => setShowOperatorModal(false)}
+          />
         </View>
       </Modal>
     </ScrollView>
@@ -339,10 +373,11 @@ const styles = StyleSheet.create({
     padding: 15,
   },
   greeting: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#2E86C1',
-    marginBottom: 5,
+    color: '#9370DB',
+    marginBottom: 10,
+    marginTop: 80,
   },
   logo: {
     width: 120,
@@ -351,9 +386,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   tagline: {
-    fontSize: 16,
-    color: '#5D6D7E',
-    marginBottom: 20,
+    fontSize: 18,
+    color: 'Purple',
+    marginBottom: 40,
   },
   sliderContainer: {
     height: 160,
@@ -469,6 +504,8 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
+    justifyContent: 'center',
+    height: 50,
   },
   disabledButton: {
     backgroundColor: '#95A5A6',
