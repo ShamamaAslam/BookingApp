@@ -1,37 +1,31 @@
+import { Picker } from '@react-native-picker/picker'; // ✅ Correct import
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Picker, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const PaymentScreen = () => {
   const params = useLocalSearchParams();
   const [bank, setBank] = useState('');
   const [amount, setAmount] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
   const [transactionId, setTransactionId] = useState('');
 
   const pakistaniBanks = [
-    'HBL',
-    'UBL',
-    'MCB',
-    'Allied Bank',
-    'Bank Alfalah',
-    'JazzCash',
-    'EasyPaisa',
-    'Al Baraka Bank',
-    'Meezan Bank',
-    'Standard Chartered',
-    'Sadapay',
-    'Nayapay'
+    'HBL', 'UBL', 'MCB', 'Allied Bank', 'Bank Alfalah',
+    'JazzCash', 'EasyPaisa', 'Al Baraka Bank', 'Meezan Bank',
+    'Standard Chartered', 'Sadapay', 'Nayapay'
   ];
 
   const handlePayment = () => {
     const expectedAmount = params.seatCount * 1000;
-    if (parseInt(amount) !== expectedAmount) {
-      Alert.alert('Invalid Amount', `Please enter exact amount: ${expectedAmount} PKR`);
+
+    if (!bank || !amount || !accountNumber) {
+      Alert.alert('Missing Info', 'Please fill in all fields');
       return;
     }
-    
-    if (!bank) {
-      Alert.alert('Bank Not Selected', 'Please select your bank');
+
+    if (parseInt(amount) !== expectedAmount) {
+      Alert.alert('Invalid Amount', `Please enter exact amount: ${expectedAmount} PKR`);
       return;
     }
 
@@ -45,8 +39,9 @@ const PaymentScreen = () => {
       params: {
         ...params,
         transactionId: transId,
-        bank: bank,
-        amount: amount
+        bank,
+        accountNumber,
+        amount
       }
     });
   };
@@ -54,7 +49,7 @@ const PaymentScreen = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Payment Details</Text>
-      
+
       <View style={styles.detailCard}>
         <Text style={styles.detailText}>Seats: {params.seats}</Text>
         <Text style={styles.detailText}>Total Amount: {params.seatCount * 1000} PKR</Text>
@@ -62,15 +57,29 @@ const PaymentScreen = () => {
 
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Select Bank:</Text>
-        <Picker
-          selectedValue={bank}
-          style={styles.picker}
-          onValueChange={(itemValue) => setBank(itemValue)}>
-          <Picker.Item label="Select your bank" value="" />
-          {pakistaniBanks.map((bank) => (
-            <Picker.Item key={bank} label={bank} value={bank} />
-          ))}
-        </Picker>
+        <View style={styles.pickerContainer}>
+          <Picker
+            selectedValue={bank}
+            onValueChange={(itemValue) => setBank(itemValue)}
+            style={styles.picker}
+          >
+            <Picker.Item label="Select your bank" value="" />
+            {pakistaniBanks.map((bank) => (
+              <Picker.Item key={bank} label={bank} value={bank} />
+            ))}
+          </Picker>
+        </View>
+      </View>
+
+      <View style={styles.inputContainer}>
+        <Text style={styles.label}>Enter Account Number:</Text>
+        <TextInput
+          style={styles.input}
+          keyboardType="number-pad"
+          placeholder="e.g. 03001234567 or 123456789"
+          value={accountNumber}
+          onChangeText={setAccountNumber}
+        />
       </View>
 
       <View style={styles.inputContainer}>
@@ -80,19 +89,18 @@ const PaymentScreen = () => {
           keyboardType="numeric"
           value={amount}
           onChangeText={setAmount}
-          placeholder="e.g. 1000"
+          placeholder={`e.g. ${params.seatCount * 1000}`}
         />
       </View>
 
-      <TouchableOpacity 
-        style={styles.payButton}
-        onPress={handlePayment}
-      >
+      <TouchableOpacity style={styles.payButton} onPress={handlePayment}>
         <Text style={styles.buttonText}>Proceed to Payment</Text>
       </TouchableOpacity>
     </View>
   );
 };
+
+export default PaymentScreen;
 
 const styles = StyleSheet.create({
   container: {
@@ -133,9 +141,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     fontSize: 16,
   },
-  picker: {
+  pickerContainer: {
     backgroundColor: 'white',
     borderRadius: 8,
+    overflow: 'hidden',
+  },
+  picker: {
+    width: '100%',
+    height: 50,
   },
   payButton: {
     backgroundColor: '#003580',
@@ -150,4 +163,3 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
-export default  PaymentScreen;

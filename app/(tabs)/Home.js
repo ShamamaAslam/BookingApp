@@ -207,7 +207,7 @@ export default function BusBookingScreen() {
       <Text style={styles.greeting}>Hello {name || 'Traveler'}!</Text>
       {!logoLoaded && <View style={[styles.logo, {backgroundColor: '#F8F9F9'}]} />}
       <Image 
-        source={require('../../assets/LOGO.jpg')} 
+        source={require('../../assets/LOGO1.jpg')} 
         style={styles.logo}
         onLoad={() => setLogoLoaded(true)}
       />

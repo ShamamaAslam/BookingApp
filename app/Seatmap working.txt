@@ -1,0 +1,304 @@
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Alert, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { supabase } from './SupabaseClient';
+
+const SeatMap = ({
+  maxSelections = 4,
+  showLegend = true
+}) => {
+  const { width } = Dimensions.get('window');
+  const router = useRouter();
+  const seatSize = Math.max(width * 0.08, 40);
+  const gapSize = width * 0.02;
+  const [rows, setRows] = useState([]);
+  const [selectedSeats, setSelectedSeats] = useState([]);
+  const [bookingGender, setBookingGender] = useState(null);
+  const [isBooking, setIsBooking] = useState(false);
+  const [seatPrice, setSeatPrice] = useState(1500);
+  const [lastPressedSeat, setLastPressedSeat] = useState(null);
+
+  // Fetch seats from Supabase
+  useEffect(() => {
+    const fetchSeats = async () => {
+      console.log('Fetching seats...');
+      const { data, error } = await supabase
+        .from('seats')
+        .select('*')
+        .order('number', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching seats:', error);
+        return;
+      }
+
+      if (data) {
+        console.log('Seats data received:', data);
+        
+        // Transform data into a more accessible format
+        const seatsMap = {};
+        data.forEach(seat => {
+          seatsMap[seat.number] = {
+            ...seat,
+            status: seat.booked ? 'booked' : 'available'
+          };
+        });
+
+        // Create rows structure
+        const newRows = [
+          [seatsMap['1'], seatsMap['2']],
+          [seatsMap['3'], seatsMap['4']],
+          [seatsMap['5'], seatsMap['6']],
+          [seatsMap['7'], seatsMap['8']]
+        ];
+        
+        setRows(newRows);
+      }
+    };
+
+    fetchSeats();
+
+    const subscription = supabase
+      .channel('seats_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'seats' }, fetchSeats)
+      .subscribe();
+
+    return () => supabase.removeChannel(subscription);
+  }, []);
+
+  const handlePress = (seatNumber) => {
+    console.log('Seat pressed:', seatNumber);
+    setLastPressedSeat(seatNumber);
+
+    // Find the seat in all rows
+    const seat = rows.flat().find(s => s?.number === seatNumber);
+    
+    if (!seat) {
+      console.warn('Seat not found:', seatNumber);
+      return;
+    }
+
+    if (seat.status === 'booked') {
+      Alert.alert('Seat Booked', 'This seat is already booked');
+      return;
+    }
+
+    setSelectedSeats(prev => {
+      // If seat is already selected, remove it
+      if (prev.includes(seatNumber)) {
+        return prev.filter(num => num !== seatNumber);
+      }
+      // If max selections reached, show alert
+      if (prev.length >= maxSelections) {
+        Alert.alert(`Maximum ${maxSelections} seats allowed`);
+        return prev;
+      }
+      // Add new seat to selection
+      return [...prev, seatNumber];
+    });
+  };
+
+  const handleBookSeats = async () => {
+    if (selectedSeats.length === 0) {
+      Alert.alert('No Seats Selected', 'Please select at least one seat');
+      return;
+    }
+
+    if (!bookingGender) {
+      Alert.alert('Gender Required', 'Please select your gender');
+      return;
+    }
+
+    router.push({
+      pathname: '/Ticket',
+      params: {
+        seats: selectedSeats.join(','),
+        gender: bookingGender,
+        seatCount: selectedSeats.length,
+        totalAmount: selectedSeats.length * seatPrice
+      }
+    });
+  };
+
+  const getSeatStyle = (seat) => {
+    if (!seat) return styles.emptySeat;
+    if (seat.status === 'booked') {
+      return seat.gender === 'male' ? styles.maleBookedSeat : styles.femaleBookedSeat;
+    }
+    if (selectedSeats.includes(seat.number)) {
+      return styles.selectedSeat;
+    }
+    return styles.availableSeat;
+  };
+
+  const renderSeat = (seat, index) => {
+    if (!seat) return <View key={`empty-${index}`} style={{ width: seatSize, height: seatSize }} />;
+
+    return (
+      <TouchableOpacity
+        key={`seat-${seat.number}`}
+        style={[styles.seat, { width: seatSize, height: seatSize }, getSeatStyle(seat)]}
+        onPress={() => handlePress(seat.number)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.seatText}>{seat.number}</Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderRow = (row, rowIndex) => {
+    return (
+      <View key={`row-${rowIndex}`} style={styles.row}>
+        {row.map((seat, index) => renderSeat(seat, index))}
+      </View>
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerText}>Select Your Seats</Text>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <View style={styles.seatGrid}>
+          {rows.map((row, index) => renderRow(row, index))}
+        </View>
+      </ScrollView>
+
+      {/* Debug Info */}
+      <View style={styles.debugInfo}>
+        <Text>Last pressed: {lastPressedSeat || 'None'}</Text>
+        <Text>Selected: {selectedSeats.join(', ') || 'None'}</Text>
+      </View>
+
+      {selectedSeats.length > 0 && (
+        <View style={styles.bookingControls}>
+          <View style={styles.genderButtons}>
+            <TouchableOpacity
+              style={[styles.genderButton, bookingGender === 'female' && styles.genderButtonSelected]}
+              onPress={() => setBookingGender('female')}
+            >
+              <Text style={styles.genderButtonText}>Female</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.genderButton, bookingGender === 'male' && styles.genderButtonSelected]}
+              onPress={() => setBookingGender('male')}
+            >
+              <Text style={styles.genderButtonText}>Male</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={styles.bookButton}
+            onPress={handleBookSeats}
+            disabled={!bookingGender}
+          >
+            <Text style={styles.bookButtonText}>
+              Book {selectedSeats.length} Seat{selectedSeats.length !== 1 ? 's' : ''}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  header: {
+    padding: 16,
+    backgroundColor: '#003580',
+  },
+  headerText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  scrollContainer: {
+    padding: 16,
+  },
+  seatGrid: {
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  seat: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+    margin: 6,
+    elevation: 3,
+  },
+  availableSeat: {
+    backgroundColor: '#4CAF50',
+  },
+  selectedSeat: {
+    backgroundColor: '#FF9800',
+  },
+  maleBookedSeat: {
+    backgroundColor: '#2196F3',
+  },
+  femaleBookedSeat: {
+    backgroundColor: '#FF1493',
+  },
+  seatText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  bookingControls: {
+    padding: 16,
+    backgroundColor: 'white',
+    borderTopWidth: 1,
+    borderColor: '#ddd',
+  },
+  genderButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 16,
+    gap: 16,
+  },
+  genderButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    backgroundColor: '#e0e0e0',
+  },
+  genderButtonSelected: {
+    backgroundColor: '#003580',
+  },
+  genderButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  bookButton: {
+    backgroundColor: '#003580',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  bookButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  debugInfo: {
+    padding: 10,
+    backgroundColor: '#eee',
+    margin: 10,
+    borderRadius: 5,
+  },
+  emptySeat: {
+    backgroundColor: 'transparent',
+  }
+});
+
+export default SeatMap;

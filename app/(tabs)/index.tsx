@@ -5,7 +5,7 @@ export default function WelcomeScreen() {
   const router = useRouter();
   return (
     <View style={styles.container}>
-    <Image source={require('../../assets/LOGO.jpg')} style={styles.logo} />
+    <Image source={require('../../assets/LOGO1.jpg')} style={styles.logo} />
 
       <Text style={styles.title}>Welcome to BookingApp</Text>
       <Text style={styles.subtitle}>
