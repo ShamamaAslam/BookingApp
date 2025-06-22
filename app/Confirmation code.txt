@@ -1,33 +1,41 @@
-import { useLocalSearchParams } from 'expo-router';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Share, Alert } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
+import { Ionicons } from '@expo/vector-icons';
+import * as MediaLibrary from 'expo-media-library';
 
-const Confirmation = () => {
-  const {
-    transactionId = '',
-    seats = '',
-    totalAmount = 0,
-    seatCount = 0
-  } = useLocalSearchParams();
+const ConfirmationScreen = () => {
+  const viewRef = useRef();
 
-  const handleDownload = () => {
-    // You can add actual file download logic here if needed
-    alert('Download feature coming soon!');
+  const handleDownload = async () => {
+    try {
+      const permission = await MediaLibrary.requestPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission denied', 'Storage permission is required to save the ticket.');
+        return;
+      }
+
+      const uri = await captureRef(viewRef, {
+        format: 'png',
+        quality: 1,
+      });
+
+      const asset = await MediaLibrary.createAssetAsync(uri);
+      await MediaLibrary.createAlbumAsync('SaffarNow Tickets', asset, false);
+
+      Alert.alert('Success', 'Ticket saved to your gallery!');
+    } catch (error) {
+      console.error('Download error:', error);
+      Alert.alert('Error', 'Something went wrong while saving the ticket.');
+    }
   };
 
   return (
     <View style={styles.container}>
-      <Image
-        source={{ uri: 'https://cdn-icons-png.flaticon.com/512/845/845646.png' }}
-        style={styles.tickIcon}
-      />
-      <Text style={styles.heading}>Booking Confirmed!</Text>
-      <Text style={styles.subText}>Thank you for booking with SaffarNow</Text>
-
-      <View style={styles.card}>
-        <Text style={styles.detail}><Text style={styles.label}>Seats:</Text> {seats}</Text>
-        <Text style={styles.detail}><Text style={styles.label}>Total Seats:</Text> {seatCount}</Text>
-        <Text style={styles.detail}><Text style={styles.label}>Amount Paid:</Text> {totalAmount} PKR</Text>
-        <Text style={styles.detail}><Text style={styles.label}>Transaction ID:</Text> {transactionId}</Text>
+      <View style={styles.content} ref={viewRef}>
+        <Ionicons name="checkmark-circle" size={120} color="green" style={styles.checkIcon} />
+        <Text style={styles.title}>Booking Confirmed!</Text>
+        <Text style={styles.message}>Your SaffarNow ticket has been successfully booked.</Text>
       </View>
 
       <TouchableOpacity style={styles.button} onPress={handleDownload}>
@@ -37,63 +45,50 @@ const Confirmation = () => {
   );
 };
 
-export default Confirmation;
+export default ConfirmationScreen;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#e7f9ee',
+    backgroundColor: '#f5f5f5',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   },
-  tickIcon: {
-    width: 120,
-    height: 120,
-    marginBottom: 30,
+  content: {
+    alignItems: 'center',
+    marginBottom: 40,
+    padding: 20,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 380,
+    elevation: 3,
   },
-  heading: {
-    fontSize: 24,
+  checkIcon: {
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#2e7d32',
     marginBottom: 10,
-    textAlign: 'center',
   },
-  subText: {
+  message: {
     fontSize: 16,
-    color: '#4caf50',
-    marginBottom: 25,
     textAlign: 'center',
-  },
-  card: {
-    width: '100%',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 25,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  detail: {
-    fontSize: 16,
-    marginBottom: 8,
-    color: '#333',
-  },
-  label: {
-    fontWeight: 'bold',
-    color: '#2e7d32',
+    color: '#555',
   },
   button: {
-    backgroundColor: '#2e7d32',
+    backgroundColor: '#003580',
     paddingVertical: 14,
-    paddingHorizontal: 28,
+    paddingHorizontal: 24,
     borderRadius: 8,
+    elevation: 2,
   },
   buttonText: {
     color: 'white',
-    fontSize: 16,
     fontWeight: 'bold',
+    fontSize: 16,
   },
 });

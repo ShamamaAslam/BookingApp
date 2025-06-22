@@ -24,7 +24,7 @@ export default function TabLayout() {
           default: {},
         }),
       }}>
-      {/* Home Tab - will handle all stack navigation */}
+      {/* Home Tab */}
       <Tabs.Screen
         name="index"
         options={{
@@ -42,11 +42,22 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Hidden screens - accessible via navigation but not shown in tabs */}
-      <Tabs.Screen name="BusDetails" options={{ href: null }} />
-      <Tabs.Screen name="SeatMap" options={{ href: null }} />
-      <Tabs.Screen name="Payment" options={{ href: null }} />
-      <Tabs.Screen name="VerifyEmail" options={{ href: null }} />
+      {/* SeatMap Tab */}
+      <Tabs.Screen
+        name="seatMap"
+        options={{
+          title: 'Book Seats',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="ticket.fill" color={color} />,
+        }}/>
+      {/*Payment Tab*/ }
+     <Tabs.Screen
+        name="payment"
+        options={{
+         title: 'Payment',
+          tabBarButton: () => null, // Hide from tab bar
+          tabBarStyle: { display: 'none' }
+         }}
+            />
     </Tabs>
   );
 }
