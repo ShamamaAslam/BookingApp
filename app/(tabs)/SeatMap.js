@@ -6,8 +6,9 @@ import { supabase } from './SupabaseClient';
 const SeatMap = ({ maxSelections = 4, showLegend = true }) => {
   const { width } = Dimensions.get('window');
   const router = useRouter();
-  const seatWidth = width * 0.03;
-  const gapSize = width * 0.01;
+  const seatWidth = width * 0.08;
+  const seatHeight = seatWidth;
+  const gapSize = width * 0.02;
   const [rows, setRows] = useState([]);
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [bookingGender, setBookingGender] = useState(null);
@@ -15,6 +16,14 @@ const SeatMap = ({ maxSelections = 4, showLegend = true }) => {
 
   useEffect(() => {
     const fetchSeats = async () => {
+      // Test data with pre-booked seats
+      const mockBookedSeats = [
+        { number: '1', booked: true, gender: 'female' },
+        { number: '2', booked: true, gender: 'male' },
+        { number: '5', booked: true, gender: 'female' },
+        { number: '8', booked: true, gender: 'male' },
+      ];
+
       const { data, error } = await supabase
         .from('seats')
         .select('*')
@@ -25,8 +34,14 @@ const SeatMap = ({ maxSelections = 4, showLegend = true }) => {
         return;
       }
 
+      // Merge with test data
+      const mergedData = data.map(seat => {
+        const mockSeat = mockBookedSeats.find(s => s.number === seat.number);
+        return mockSeat || seat;
+      });
+
       const seatsMap = {};
-      data.forEach(seat => {
+      mergedData.forEach(seat => {
         seatsMap[seat.number] = {
           ...seat,
           status: seat.booked ? 'booked' : 'available'
@@ -61,28 +76,9 @@ const SeatMap = ({ maxSelections = 4, showLegend = true }) => {
     return () => supabase.removeChannel(subscription);
   }, []);
 
-  const isAdjacentGenderAllowed = (seatIndex, row) => {
-    const adjacentIndexes = [seatIndex - 1, seatIndex + 1];
-    for (let i of adjacentIndexes) {
-      const adjSeat = row[i];
-      if (adjSeat && adjSeat.status === 'booked' && adjSeat.gender !== bookingGender) {
-        return false;
-      }
-    }
-    return true;
-  };
-
   const handlePress = (seatNumber) => {
     const seat = rows.flat().find(s => s?.number === seatNumber);
     if (!seat || seat.status === 'booked') return;
-
-    const foundRow = rows.find(row => row.includes(seat));
-    const seatIndex = foundRow.indexOf(seat);
-
-    if (!isAdjacentGenderAllowed(seatIndex, foundRow)) {
-      Alert.alert('Gender Restriction', 'You can only book this seat if adjacent seat is same gender.');
-      return;
-    }
 
     setSelectedSeats(prev => {
       if (prev.includes(seatNumber)) {
@@ -96,6 +92,48 @@ const SeatMap = ({ maxSelections = 4, showLegend = true }) => {
     });
   };
 
+const checkGenderRestrictions = () => {
+  if (!bookingGender) return { hasConflict: false };
+
+  for (const seatNumber of selectedSeats) {
+    const seat = rows.flat().find(s => s?.number === seatNumber);
+    if (!seat) continue;
+
+    for (const row of rows) {
+      const leftSide = row.slice(0, 2);  // seats on left of aisle
+      const rightSide = row.slice(2, 4); // seats on right of aisle
+
+      let currentSide = null;
+
+      if (leftSide.some(s => s?.number === seatNumber)) {
+        currentSide = leftSide;
+      } else if (rightSide.some(s => s?.number === seatNumber)) {
+        currentSide = rightSide;
+      }
+
+      if (currentSide) {
+        const seatIndex = currentSide.findIndex(s => s?.number === seatNumber);
+        const adjacentIndexes = [seatIndex - 1, seatIndex + 1].filter(i => i >= 0 && i < currentSide.length);
+
+        for (let i of adjacentIndexes) {
+          const adjSeat = currentSide[i];
+          if (adjSeat && adjSeat.status === 'booked' && adjSeat.gender !== bookingGender) {
+            return {
+              hasConflict: true,
+              seatNumber,
+              adjacentSeat: adjSeat.number,
+              adjacentGender: adjSeat.gender
+            };
+          }
+        }
+      }
+    }
+  }
+
+  return { hasConflict: false };
+};
+
+
   const handleBookSeats = async () => {
     if (!selectedSeats.length) {
       Alert.alert('No Seats Selected', 'Please select at least one seat');
@@ -105,15 +143,41 @@ const SeatMap = ({ maxSelections = 4, showLegend = true }) => {
       Alert.alert('Gender Required', 'Please select your gender');
       return;
     }
-    router.push({
-      pathname: '/payment',
-      params: {
-        seats: selectedSeats.join(','),
-        gender: bookingGender,
-        seatCount: selectedSeats.length,
-        totalAmount: selectedSeats.length * seatPrice
-      }
-    });
+
+    const { hasConflict, adjacentSeat, adjacentGender } = checkGenderRestrictions();
+    if (hasConflict) {
+      Alert.alert(
+        'Gender Restriction',
+        `As ${bookingGender}, you cannot sit next to ${adjacentGender} (Seat ${adjacentSeat})`
+      );
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('seats')
+        .update({ 
+          booked: true,
+          gender: bookingGender,
+          booked_at: new Date().toISOString()
+        })
+        .in('number', selectedSeats);
+
+      if (error) throw error;
+
+      router.push({
+        pathname: '/payment',
+        params: {
+          seats: selectedSeats.join(','),
+          gender: bookingGender,
+          seatCount: selectedSeats.length,
+          totalAmount: selectedSeats.length * seatPrice
+        }
+      });
+    } catch (error) {
+      console.error('Error booking seats:', error);
+      Alert.alert('Booking Failed', 'There was an error booking your seats');
+    }
   };
 
   const getSeatStyle = (seat) => {
@@ -130,11 +194,11 @@ const SeatMap = ({ maxSelections = 4, showLegend = true }) => {
   const renderSeat = (seat, index) => (
     <TouchableOpacity
       key={`seat-${index}`}
-      style={[styles.seat, { width: seatWidth }, getSeatStyle(seat)]}
+      style={[styles.seat, { width: seatWidth, height: seatWidth }, getSeatStyle(seat)]}
       onPress={() => seat && handlePress(seat.number)}
       activeOpacity={0.7}
     >
-      <Text style={[styles.seatText]}>{seat?.number || ''}</Text>
+      <Text style={styles.seatText}>{seat?.number || ''}</Text>
     </TouchableOpacity>
   );
 
@@ -153,15 +217,21 @@ const SeatMap = ({ maxSelections = 4, showLegend = true }) => {
       </ScrollView>
 
       <View style={styles.genderButtons}>
-        <TouchableOpacity style={[styles.genderButton, bookingGender === 'female' && styles.genderButtonSelected]} onPress={() => setBookingGender('female')}>
+        <TouchableOpacity 
+          style={[styles.genderButton, bookingGender === 'female' && styles.genderButtonSelected]} 
+          onPress={() => setBookingGender('female')}
+        >
           <Text style={styles.genderButtonText}>Female</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.genderButton, bookingGender === 'male' && styles.genderButtonSelected]} onPress={() => setBookingGender('male')}>
+        <TouchableOpacity 
+          style={[styles.genderButton, bookingGender === 'male' && styles.genderButtonSelected]} 
+          onPress={() => setBookingGender('male')}
+        >
           <Text style={styles.genderButtonText}>Male</Text>
         </TouchableOpacity>
       </View>
 
-      {selectedSeats.length > 0 && bookingGender && (
+      {selectedSeats.length > 0 && (
         <TouchableOpacity style={styles.bookButton} onPress={handleBookSeats}>
           <Text style={styles.bookButtonText}>Proceed to Payment</Text>
         </TouchableOpacity>
@@ -173,10 +243,20 @@ const SeatMap = ({ maxSelections = 4, showLegend = true }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 10, backgroundColor: '#f5f5f5' },
   scrollContainer: { paddingVertical: 10 },
-  row: { flexDirection: 'row', justifyContent: 'center', marginBottom: 8 },
-  sideContainer: { flexDirection: 'row', marginHorizontal: 10 },
-  seat: { height: 32, justifyContent: 'center', alignItems: 'center', borderRadius: 50, marginHorizontal: 3 },
-  seatText: { color: '#fff', fontSize: 10 },
+  row: { flexDirection: 'row', justifyContent: 'center', marginBottom: 12 },
+  sideContainer: { flexDirection: 'row', marginHorizontal: 12 },
+  seat: { 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    borderRadius: 50,
+    marginHorizontal: 3,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  seatText: { color: '#fff', fontSize: 12 },
   availableSeat: { backgroundColor: '#4CAF50' },
   selectedSeat: { backgroundColor: '#FF9800' },
   maleBookedSeat: { backgroundColor: '#2196F3' },

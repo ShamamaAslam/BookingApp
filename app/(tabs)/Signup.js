@@ -26,6 +26,7 @@ export default function SignupScreen() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [signupSuccess, setSignupSuccess] = useState(false);
 
   const validateForm = () => {
     const newErrors = {};
@@ -51,27 +52,38 @@ export default function SignupScreen() {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
           data: {
             name: formData.name,
-          }
+          },
+          emailRedirectTo: 'yourapp://auth/callback' // REPLACE WITH YOUR APP'S SCHEME
         }
       });
 
       if (error) {
         let errorMessage = 'Signup failed';
         if (error.message.includes('already registered')) {
-          errorMessage = 'Email already registered';
+          errorMessage = 'Email already registered. Please log in or reset your password.';
         } else if (error.message.includes('password')) {
-          errorMessage = 'Weak password detected';
+          errorMessage = 'Weak password detected. Please use a stronger password.';
         }
         throw new Error(errorMessage);
       }
 
-      router.replace('/Home');
+      setSignupSuccess(true);
+      Alert.alert(
+        'Verify Your Email',
+        `We've sent a confirmation link to ${formData.email}. Please check your inbox and verify your email before logging in.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => router.push('/Login')
+          }
+        ]
+      );
       
     } catch (error) {
       Alert.alert('Error', error.message);
@@ -92,94 +104,106 @@ export default function SignupScreen() {
             <Text style={styles.subtitle}>Join us today!</Text>
           </View>
 
-          <View style={styles.form}>
-            {/* Name Field */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Full Name</Text>
-              <TextInput
-                style={[styles.input, errors.name && styles.inputError]}
-                placeholder="John Doe"
-                value={formData.name}
-                onChangeText={(text) => handleChange('name', text)}
-                autoCapitalize="words"
-              />
-              {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
-            </View>
-
-            {/* Email Field */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={[styles.input, errors.email && styles.inputError]}
-                placeholder="your@email.com"
-                value={formData.email}
-                onChangeText={(text) => handleChange('email', text)}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
-            </View>
-
-            {/* Password Field */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.passwordContainer}>
-                <TextInput
-                  style={[styles.input, styles.passwordInput, errors.password && styles.inputError]}
-                  placeholder="••••••"
-                  value={formData.password}
-                  onChangeText={(text) => handleChange('password', text)}
-                  secureTextEntry={!passwordVisible}
-                />
-                <TouchableOpacity 
-                  style={styles.visibilityToggle}
-                  onPress={() => setPasswordVisible(!passwordVisible)}
-                >
-                  <Text style={styles.visibilityText}>
-                    {passwordVisible ? 'Hide' : 'Show'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
-            </View>
-
-            {/* Confirm Password Field */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Confirm Password</Text>
-              <TextInput
-                style={[styles.input, errors.confirmPassword && styles.inputError]}
-                placeholder="••••••"
-                value={formData.confirmPassword}
-                onChangeText={(text) => handleChange('confirmPassword', text)}
-                secureTextEntry={!passwordVisible}
-              />
-              {errors.confirmPassword && (
-                <Text style={styles.errorText}>{errors.confirmPassword}</Text>
-              )}
-            </View>
-
-            {/* Sign Up Button */}
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleSignup}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Create Account</Text>
-              )}
-            </TouchableOpacity>
-
-            {/* Login Link */}
-            <View style={styles.loginContainer}>
-              <Text style={styles.loginText}>Already have an account?</Text>
-              <TouchableOpacity onPress={() => router.push('/Login')}>
-                <Text style={styles.loginLink}> Log In</Text>
+          {signupSuccess ? (
+            <View style={styles.successContainer}>
+              <Text style={styles.successText}>Check your email to verify your account!</Text>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={() => router.push('/Login')}
+              >
+                <Text style={styles.buttonText}>Go to Login</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          ) : (
+            <View style={styles.form}>
+              {/* Name Field */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Full Name</Text>
+                <TextInput
+                  style={[styles.input, errors.name && styles.inputError]}
+                  placeholder="John Doe"
+                  value={formData.name}
+                  onChangeText={(text) => handleChange('name', text)}
+                  autoCapitalize="words"
+                />
+                {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
+              </View>
+
+              {/* Email Field */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  style={[styles.input, errors.email && styles.inputError]}
+                  placeholder="your@email.com"
+                  value={formData.email}
+                  onChangeText={(text) => handleChange('email', text)}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+              </View>
+
+              {/* Password Field */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Password</Text>
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={[styles.input, styles.passwordInput, errors.password && styles.inputError]}
+                    placeholder="••••••"
+                    value={formData.password}
+                    onChangeText={(text) => handleChange('password', text)}
+                    secureTextEntry={!passwordVisible}
+                  />
+                  <TouchableOpacity 
+                    style={styles.visibilityToggle}
+                    onPress={() => setPasswordVisible(!passwordVisible)}
+                  >
+                    <Text style={styles.visibilityText}>
+                      {passwordVisible ? 'Hide' : 'Show'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+              </View>
+
+              {/* Confirm Password Field */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Confirm Password</Text>
+                <TextInput
+                  style={[styles.input, errors.confirmPassword && styles.inputError]}
+                  placeholder="••••••"
+                  value={formData.confirmPassword}
+                  onChangeText={(text) => handleChange('confirmPassword', text)}
+                  secureTextEntry={!passwordVisible}
+                />
+                {errors.confirmPassword && (
+                  <Text style={styles.errorText}>{errors.confirmPassword}</Text>
+                )}
+              </View>
+
+              {/* Sign Up Button */}
+              <TouchableOpacity
+                style={[styles.button, loading && styles.buttonDisabled]}
+                onPress={handleSignup}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.buttonText}>Create Account</Text>
+                )}
+              </TouchableOpacity>
+
+              {/* Login Link */}
+              <View style={styles.loginContainer}>
+                <Text style={styles.loginText}>Already have an account?</Text>
+                <TouchableOpacity onPress={() => router.push('/Login')}>
+                  <Text style={styles.loginLink}> Log In</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -283,5 +307,15 @@ const styles = StyleSheet.create({
   loginLink: {
     color: '#3498db',
     fontWeight: '600',
+  },
+  successContainer: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  successText: {
+    fontSize: 16,
+    color: '#27ae60',
+    textAlign: 'center',
+    marginBottom: 20,
   },
 });

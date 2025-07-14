@@ -11,36 +11,9 @@ export default function BusDetails() {
   const [loading, setLoading] = useState(true);
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [passengerDetails, setPassengerDetails] = useState(
-
     Array(Number(params.passengers)).fill({ name: '', age: '', gender: '' })
   );
-useEffect(() => {
-  async function fetchBuses() {
-    try {
-      setLoading(true);
-      
-      // 👇 ADD THIS DEBUG LOG HERE (right after setLoading)
-      console.log("Searching for:", {
-        from: params.from,
-        to: params.to,
-        date: new Date(params.date).toISOString(),
-        operator: params.operator || 'Any Operator'
-      });
-      
-      // Keep the rest of your existing code below
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      let query = supabase
-        .from('buses')
-        // ... rest of your query
-    } catch (err) {
-      // ... error handling
-    } finally {
-      setLoading(false);
-    }
-  }
 
-  fetchBuses();
-}, []);
   useEffect(() => {
     async function fetchBusDetails() {
       try {
@@ -78,9 +51,6 @@ useEffect(() => {
   };
 
   const handleProceedToPayment = () => {
- console.log('Attempting to navigate to payment...'); 
-  console.log('Selected seats:', selectedSeats); 
-
     if (selectedSeats.length !== Number(params.passengers)) {
       alert(`Please select ${params.passengers} seat(s)`);
       return;
@@ -120,12 +90,12 @@ useEffect(() => {
           <Text style={styles.time}>{formatTime(bus.departure_time)}</Text>
           <Text style={styles.city}>{params.from}</Text>
         </View>
-        
+
         <View style={styles.durationContainer}>
           <Text style={styles.durationText}>{bus.duration} hrs</Text>
           <View style={styles.durationLine} />
         </View>
-        
+
         <View style={styles.routeTiming}>
           <Text style={styles.time}>{formatTime(bus.arrival_time)}</Text>
           <Text style={styles.city}>{params.to}</Text>
@@ -148,14 +118,14 @@ useEffect(() => {
       </View>
 
       <View style={styles.seatSelection}>
-        <Text style={styles.sectionTitle}>Select Seats ({params.passengers} needed)</Text>
-       <SeatMap
-  seats={bus.seat_map}
-  selectedSeats={selectedSeats}
-  onSeatSelect={setSelectedSeats}
-  maxSelections={Number(params.passengers)}
-  busType={bus.type.toLowerCase()} 
-/>
+        <Text style={styles.sectionTitle}>Select Seats</Text>
+        <SeatMap
+          busId={bus.id}
+          selectedSeats={selectedSeats}
+          onSeatSelect={setSelectedSeats}
+          maxSelections={Number(params.passengers)}
+          busType={bus.type.toLowerCase()}
+        />
 
         <View style={styles.seatLegend}>
           <View style={styles.legendItem}>
@@ -272,11 +242,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#2C3E50',
-    marginBottom: 12
-  },
-  busLayout: {
-    width: '100%',
-    height: 200,
     marginBottom: 12
   },
   seatLegend: {
